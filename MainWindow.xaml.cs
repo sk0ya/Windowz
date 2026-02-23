@@ -24,6 +24,7 @@ public partial class MainWindow : Window
         _timer.Start();
 
         LocationChanged  += (_, _) => RepositionActiveWindow();
+        SizeChanged      += (_, _) => RepositionActiveWindow();
         StateChanged     += OnStateChanged;
     }
 
