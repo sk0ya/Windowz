@@ -14,6 +14,8 @@ public partial class MainWindow : Window
     private readonly List<(ManagedWindow Window, TabItemControl Control)> _tabs = new();
     private int _activeIndex = -1;
     private readonly DispatcherTimer _timer;
+    private readonly DispatcherTimer _dragSyncTimer;
+    private bool _isSyncingFromManagedWindowMove;
 
     public MainWindow()
     {
@@ -22,6 +24,10 @@ public partial class MainWindow : Window
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += OnTimerTick;
         _timer.Start();
+
+        _dragSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _dragSyncTimer.Tick += OnDragSyncTick;
+        _dragSyncTimer.Start();
 
         LocationChanged  += (_, _) => RepositionActiveWindow();
         SizeChanged      += (_, _) => RepositionActiveWindow();
@@ -253,6 +259,45 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnDragSyncTick(object? sender, EventArgs e)
+    {
+        if (_isSyncingFromManagedWindowMove) return;
+        if (WindowState != WindowState.Normal) return;
+        if (_activeIndex < 0 || _activeIndex >= _tabs.Count) return;
+
+        var (win, _) = _tabs[_activeIndex];
+        if (!win.IsAlive || NativeMethods.IsIconic(win.Handle)) return;
+
+        var (contentX, contentY, _, _) = GetContentAreaPixels();
+        if (!NativeMethods.GetWindowRect(win.Handle, out var managedRect)) return;
+
+        int dx = managedRect.Left - contentX;
+        int dy = managedRect.Top - contentY;
+        const int threshold = 2;
+        if (Math.Abs(dx) <= threshold && Math.Abs(dy) <= threshold) return;
+
+        var mainHwnd = new WindowInteropHelper(this).Handle;
+        if (mainHwnd == IntPtr.Zero) return;
+        if (!NativeMethods.GetWindowRect(mainHwnd, out var mainRect)) return;
+
+        _isSyncingFromManagedWindowMove = true;
+        try
+        {
+            NativeMethods.SetWindowPos(
+                mainHwnd,
+                IntPtr.Zero,
+                mainRect.Left + dx,
+                mainRect.Top + dy,
+                0,
+                0,
+                NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        }
+        finally
+        {
+            _isSyncingFromManagedWindowMove = false;
+        }
+    }
+
     // ===== コンテンツエリアのサイズ変更 (リサイズ / スプリッター) =====
     private void ContentArea_SizeChanged(object sender, SizeChangedEventArgs e)
         => RepositionActiveWindow();
@@ -340,6 +385,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _dragSyncTimer.Stop();
         _timer.Stop();
         ReleaseAllWindows();
         base.OnClosed(e);
