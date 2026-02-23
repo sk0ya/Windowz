@@ -372,6 +372,9 @@ public partial class MainWindow : Window
 
     private void UpdateManagedWindowLayout(bool activate)
     {
+        if (_isSyncingWindFromManagedWindow)
+            return;
+
         IntPtr targetHandle = IntPtr.Zero;
         bool canShowManagedWindow =
             !_viewModel.IsWindowPickerOpen &&
@@ -409,27 +412,45 @@ public partial class MainWindow : Window
             // bringToFront correctly.
             if (NativeMethods.GetWindowRect(targetHandle, out var currentRect))
             {
-                _windowManager.ActivateManagedWindow(
-                    targetHandle,
-                    currentRect.Left,
-                    currentRect.Top,
-                    Math.Max(1, currentRect.Width),
-                    Math.Max(1, currentRect.Height),
-                    bringToFront: false,
-                    windHwnd);
+                _ignoreManagedWindowEventsUntilTick = Environment.TickCount64 + ManagedWindowEventIgnoreDurationMs;
+                _isSyncingManagedWindowFromWind = true;
+                try
+                {
+                    _windowManager.ActivateManagedWindow(
+                        targetHandle,
+                        currentRect.Left,
+                        currentRect.Top,
+                        Math.Max(1, currentRect.Width),
+                        Math.Max(1, currentRect.Height),
+                        bringToFront: false,
+                        windHwnd);
+                }
+                finally
+                {
+                    _isSyncingManagedWindowFromWind = false;
+                }
             }
 
             return;
         }
 
-        _windowManager.ActivateManagedWindow(
-            targetHandle,
-            bounds.Left,
-            bounds.Top,
-            bounds.Width,
-            bounds.Height,
-            bringToFront,
-            windHwnd);
+        _ignoreManagedWindowEventsUntilTick = Environment.TickCount64 + ManagedWindowEventIgnoreDurationMs;
+        _isSyncingManagedWindowFromWind = true;
+        try
+        {
+            _windowManager.ActivateManagedWindow(
+                targetHandle,
+                bounds.Left,
+                bounds.Top,
+                bounds.Width,
+                bounds.Height,
+                bringToFront,
+                windHwnd);
+        }
+        finally
+        {
+            _isSyncingManagedWindowFromWind = false;
+        }
 
         _activeManagedWindowHandle = targetHandle;
     }
