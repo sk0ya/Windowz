@@ -29,12 +29,6 @@ public sealed class AppSettings
     public string EmbedCloseAction { get; set; } = "CloseApp";
 
     /// <summary>
-    /// True = hide embedded apps from taskbar while hosted in Wind (default),
-    /// False = keep embedded apps visible in taskbar.
-    /// </summary>
-    public bool HideEmbeddedFromTaskbar { get; set; } = true;
-
-    /// <summary>
     /// True = automatically embed any new top-level window that appears on the system,
     /// False = do not auto-embed (default).
     /// </summary>
@@ -63,10 +57,6 @@ public sealed class StartupApplicationSetting
     public string Name { get; set; } = string.Empty;
 
     public string? Group { get; set; }
-
-    public string? Tile { get; set; }
-
-    public int? TilePosition { get; set; }
 }
 
 public sealed class StartupGroupSetting

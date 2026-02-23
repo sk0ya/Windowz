@@ -186,9 +186,6 @@
                 <DataTrigger Binding="{Binding IsMultiSelected}" Value="True">
                     <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsTiled}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
-                </DataTrigger>
             </Style.Triggers>
         </Style>
 
@@ -211,9 +208,6 @@
                 <DataTrigger Binding="{Binding IsMultiSelected}" Value="True">
                     <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsTiled}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
-                </DataTrigger>
             </Style.Triggers>
         </Style>
 
@@ -235,10 +229,6 @@
                     Tag="{Binding}">
                 <Border.ContextMenu>
                     <ContextMenu Tag="{Binding}" Opened="TabContextMenu_Opened">
-                        <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
-                        <MenuItem Header="タイル解除" Click="StopTile_Click"
-                                  Visibility="{Binding IsTiled, Converter={StaticResource BoolToVisibility}}"/>
-                        <Separator/>
                         <MenuItem Header="Startup に登録" Click="ToggleStartup_Click" Tag="{Binding}"/>
                         <MenuItem Header="QuickLaunch に登録" Click="ToggleQuickLaunch_Click" Tag="{Binding}"/>
                         <Separator/>
@@ -310,10 +300,6 @@
                     Tag="{Binding}">
                 <Border.ContextMenu>
                     <ContextMenu Tag="{Binding}" Opened="TabContextMenu_Opened">
-                        <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
-                        <MenuItem Header="タイル解除" Click="StopTile_Click"
-                                  Visibility="{Binding IsTiled, Converter={StaticResource BoolToVisibility}}"/>
-                        <Separator/>
                         <MenuItem Header="Startup に登録" Click="ToggleStartup_Click" Tag="{Binding}"/>
                         <MenuItem Header="QuickLaunch に登録" Click="ToggleQuickLaunch_Click" Tag="{Binding}"/>
                         <Separator/>
@@ -392,10 +378,6 @@
                     Padding="8,6">
                 <Border.ContextMenu>
                     <ContextMenu Tag="{Binding}" Opened="TabContextMenu_Opened">
-                        <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
-                        <MenuItem Header="タイル解除" Click="StopTile_Click"
-                                  Visibility="{Binding IsTiled, Converter={StaticResource BoolToVisibility}}"/>
-                        <Separator/>
                         <MenuItem Header="Startup に登録" Click="ToggleStartup_Click" Tag="{Binding}"/>
                         <MenuItem Header="QuickLaunch に登録" Click="ToggleQuickLaunch_Click" Tag="{Binding}"/>
                         <Separator/>
@@ -554,20 +536,7 @@
                 <Border x:Name="WindowHostContainer" ClipToBounds="True" Padding="0" Margin="0"
                         Background="{DynamicResource ApplicationBackgroundBrush}"
                         UseLayoutRounding="True" SnapsToDevicePixels="True"
-                        Visibility="{Binding SelectedTab, Converter={StaticResource NullToVisibility}}">
-                    <ContentControl x:Name="WindowHostContent"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    HorizontalContentAlignment="Stretch"
-                                    VerticalContentAlignment="Stretch"
-                                    Margin="0"
-                                    Focusable="False"/>
-                </Border>
-
-                <!-- Tile Container -->
-                <Grid x:Name="TileContainer" ClipToBounds="True"
-                      UseLayoutRounding="True" SnapsToDevicePixels="True"
-                      Visibility="Collapsed"/>
+                        Visibility="{Binding SelectedTab, Converter={StaticResource NullToVisibility}}"/>
 
                 <!-- Content Tab Container (Settings etc.) -->
                 <Border x:Name="ContentTabContainer" Visibility="Collapsed">

@@ -93,19 +93,6 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="埋め込み中はタスクバーに表示しない" VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding HideEmbeddedFromTaskbar, Mode=TwoWay}"/>
-                </Grid>
-            </Border>
-
-            <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    CornerRadius="6" Padding="12,8" Margin="0,0,0,4">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="新規ウィンドウを自動で埋め込む" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                         <TextBlock Text="新しく表示されたウィンドウを自動的にタブとして取り込みます"

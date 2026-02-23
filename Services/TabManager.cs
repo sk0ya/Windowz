@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using WindowzTabManager.Interop;
 using WindowzTabManager.Models;
 using WindowzTabManager.Views;
 
@@ -42,22 +41,9 @@ public partial class TabManager
         }
     }
 
-    private TileLayout? _currentTileLayout;
-    public TileLayout? CurrentTileLayout
-    {
-        get => _currentTileLayout;
-        private set
-        {
-            _currentTileLayout = value;
-            TileLayoutChanged?.Invoke(this, value);
-        }
-    }
-
     public event EventHandler<TabItem?>? ActiveTabChanged;
     public event EventHandler<TabItem>? TabAdded;
     public event EventHandler<TabItem>? TabRemoved;
-    public event EventHandler<TileLayout?>? TileLayoutChanged;
-    public event EventHandler? TileLayoutUpdated;
     public event EventHandler? CloseWindRequested;
 
     public TabManager(WindowManager windowManager, SettingsManager settingsManager, ProcessTracker processTracker)
@@ -210,9 +196,6 @@ public partial class TabManager
             return;
         }
 
-        // Update tile layout if this tab was tiled
-        UpdateTileForRemovedTab(tab);
-
         // Remove the tab without trying to release the window (it's already closed)
         if (_externallyManagedWindows.TryGetValue(tab.Id, out var managedHandle))
         {
@@ -245,9 +228,6 @@ public partial class TabManager
 
     public void RemoveTab(TabItem tab)
     {
-        // Update tile layout if this tab was tiled
-        UpdateTileForRemovedTab(tab);
-
         if (tab.IsWebTab)
         {
             RemoveWebTabControl(tab.Id);
@@ -313,9 +293,6 @@ public partial class TabManager
                 break;
 
             case "ReleaseEmbed":
-                // Update tile layout if this tab was tiled
-                UpdateTileForRemovedTab(tab);
-
                 // Release embedding and restore to desktop
                 if (!tab.IsContentTab && _externallyManagedWindows.TryGetValue(tab.Id, out var managedHandleToRelease))
                 {
@@ -358,11 +335,6 @@ public partial class TabManager
         }
     }
 
-    public WindowHost? GetWindowHost(TabItem tab)
-    {
-        return null;
-    }
-
     public bool IsExternallyManagedTab(TabItem tab)
     {
         return _externallyManagedWindows.ContainsKey(tab.Id);
@@ -371,11 +343,6 @@ public partial class TabManager
     public bool TryGetExternallyManagedWindowHandle(TabItem tab, out IntPtr handle)
     {
         return _externallyManagedWindows.TryGetValue(tab.Id, out handle);
-    }
-
-    public bool CanTileTab(TabItem tab)
-    {
-        return false;
     }
 
     public void SelectTab(int index)

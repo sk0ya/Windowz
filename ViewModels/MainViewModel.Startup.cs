@@ -47,23 +47,11 @@ public partial class MainViewModel
         // Apply groups from settings
         ApplyStartupGroups(configTabPairs, settings);
 
-        // Apply tile layout from settings
-        ApplyStartupTile(configTabPairs);
-
-        // Activate the correct tab now that all tabs, groups, and tiles are set up.
+        // Activate the correct tab now that all tabs and groups are set up.
         // During the loop above, tabs were added without activation to avoid
         // rapid ActiveTab changes that cause display inconsistencies
-        // (each change triggers Dispatcher.BeginInvoke for UpdateWindowHost,
-        // but only the last one's window actually gets embedded via BuildWindowCore).
-        if (IsTiled)
-        {
-            // If a tile layout is active, select the first tiled tab
-            // so OnActiveTabChanged shows the tile view.
-            var firstTiledTab = _tabManager.Tabs.FirstOrDefault(t => t.IsTiled);
-            if (firstTiledTab != null)
-                _tabManager.ActiveTab = firstTiledTab;
-        }
-        else if (_tabManager.Tabs.Count > 0)
+        // (each change triggers Dispatcher.BeginInvoke for layout updates).
+        if (_tabManager.Tabs.Count > 0)
         {
             _tabManager.ActiveTab = _tabManager.Tabs.Last();
         }
@@ -106,28 +94,6 @@ public partial class MainViewModel
             {
                 _tabManager.AddTabToGroup(tab, group);
             }
-        }
-    }
-
-    private void ApplyStartupTile(List<(StartupApplication Config, TabItem Tab)> configTabPairs)
-    {
-        // Group tabs by tile name
-        var tileGroups = configTabPairs
-            .Where(p => !string.IsNullOrEmpty(p.Config.Tile))
-            .GroupBy(p => p.Config.Tile!, StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() >= 2);
-
-        foreach (var tileGroup in tileGroups)
-        {
-            // Sort by TilePosition, then by original order
-            var orderedTabs = tileGroup
-                .OrderBy(p => p.Config.TilePosition ?? int.MaxValue)
-                .Select(p => p.Tab)
-                .ToList();
-
-            _tabManager.StartTile(orderedTabs);
-            StatusMessage = $"Tiled {orderedTabs.Count} tabs";
-            break; // Only one tile layout can be active at a time
         }
     }
 

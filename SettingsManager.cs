@@ -17,7 +17,6 @@ public sealed class SettingsManager
     public AppSettings Settings => _settings;
 
     public event Action<string>? TabHeaderPositionChanged;
-    public event Action<bool>? HideEmbeddedFromTaskbarChanged;
     public event Action<bool>? AutoEmbedNewWindowsChanged;
     public event Action? AutoEmbedExclusionsChanged;
 
@@ -124,9 +123,7 @@ public sealed class SettingsManager
                     : a.Name.Trim(),
                 Path = a.Path.Trim(),
                 Arguments = a.Arguments?.Trim() ?? string.Empty,
-                Group = a.Group,
-                Tile = a.Tile,
-                TilePosition = a.TilePosition
+                Group = a.Group
             })
             .ToList();
 
@@ -297,16 +294,6 @@ public sealed class SettingsManager
         _settings.TabHeaderPosition = position;
         SaveSettings();
         TabHeaderPositionChanged?.Invoke(position);
-    }
-
-    public void SetHideEmbeddedFromTaskbar(bool hideFromTaskbar)
-    {
-        if (_settings.HideEmbeddedFromTaskbar == hideFromTaskbar)
-            return;
-
-        _settings.HideEmbeddedFromTaskbar = hideFromTaskbar;
-        SaveSettings();
-        HideEmbeddedFromTaskbarChanged?.Invoke(hideFromTaskbar);
     }
 
     public void SetAutoEmbedNewWindows(bool enable)

@@ -120,39 +120,6 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private void TileSelectedTabs()
-    {
-        var selectedTabs = _tabManager.GetMultiSelectedTabs();
-        if (selectedTabs.Count < 2)
-        {
-            StatusMessage = "Select 2 or more tabs to tile";
-            return;
-        }
-
-        if (selectedTabs.Any(t => !t.IsContentTab && !t.IsWebTab && !_tabManager.CanTileTab(t)))
-        {
-            StatusMessage = "外部管理タブを含むためタイル表示できません";
-            return;
-        }
-
-        _tabManager.StartTile(selectedTabs);
-        StatusMessage = $"Tiled {selectedTabs.Count} tabs";
-    }
-
-    [RelayCommand]
-    private void StopTile()
-    {
-        _tabManager.StopTile();
-        IsTileVisible = false;
-        // Restore single tab view
-        if (SelectedTab != null)
-        {
-            CurrentWindowHost = _tabManager.GetWindowHost(SelectedTab);
-        }
-        StatusMessage = "Tile layout stopped";
-    }
-
-    [RelayCommand]
     private void ReleaseAllWindows()
     {
         _tabManager.ReleaseAllTabs();

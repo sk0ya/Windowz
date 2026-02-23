@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
-using WindowzTabManager.Interop;
 using WindowzTabManager.Models;
 using WindowzTabManager.Services;
 using WindowzTabManager.ViewModels;
@@ -19,11 +18,9 @@ public partial class MainWindow : Window
     private readonly TabManager _tabManager;
     private readonly WindowManager _windowManager;
     private readonly SettingsManager _settingsManager;
-    private WindowHost? _currentHost;
     private IntPtr _activeManagedWindowHandle;
     private Point? _dragStartPoint;
     private bool _isDragging;
-    private readonly List<WindowHost> _tiledHosts = new();
     private GeneralSettingsPage? _generalSettingsPage;
     private HotkeySettingsPage? _hotkeySettingsPage;
     private StartupSettingsPage? _startupSettingsPage;
@@ -99,18 +96,6 @@ public partial class MainWindow : Window
 
         _tabManager.CloseWindRequested += (s, e) => { Close(); };
 
-        _tabManager.TileLayoutUpdated += (s, e) =>
-        {
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
-            {
-                if (_viewModel.CurrentTileLayout != null)
-                {
-                    ClearTileLayout();
-                    BuildTileLayout(_viewModel.CurrentTileLayout);
-                }
-            });
-        };
-
         // Subscribe to tab position changes
         _settingsManager.TabHeaderPositionChanged += OnTabHeaderPositionChanged;
 
@@ -171,12 +156,8 @@ public partial class MainWindow : Window
             if (shouldWaitByPid)
             {
                 int processId = 0;
-                var host = _tabManager.GetWindowHost(tab);
-                if (host != null)
-                {
-                    processId = host.HostedProcessId;
-                }
-                else if (_tabManager.IsExternallyManagedTab(tab) && tab.Window?.ProcessId is int managedPid)
+
+                if (_tabManager.IsExternallyManagedTab(tab) && tab.Window?.ProcessId is int managedPid)
                 {
                     processId = managedPid;
                 }
@@ -333,7 +314,6 @@ public partial class MainWindow : Window
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        UpdateWindowHostSize();
         UpdateManagedWindowLayout(activate: false);
     }
 
@@ -344,7 +324,6 @@ public partial class MainWindow : Window
 
     private void WindowHostContainer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        UpdateWindowHostSize();
         UpdateManagedWindowLayout(activate: false);
     }
 
@@ -364,8 +343,6 @@ public partial class MainWindow : Window
         {
             MaximizeIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.Maximize24;
         }
-
-        UpdateWindowHostSize();
 
         if (_wasMinimized && WindowState != WindowState.Minimized)
         {
@@ -393,41 +370,6 @@ public partial class MainWindow : Window
         Close();
     }
 
-    private void UpdateWindowHost(WindowHost? newHost)
-    {
-        if (_currentHost != null)
-        {
-            WindowHostContent.Content = null;
-            _currentHost = null;
-        }
-
-        _currentHost = newHost;
-
-        if (_currentHost != null)
-        {
-            WindowHostContent.Content = _currentHost;
-            Dispatcher.BeginInvoke(DispatcherPriority.Render, UpdateWindowHostSize);
-        }
-
-        UpdateManagedWindowLayout(activate: false);
-    }
-
-    private void UpdateWindowHostSize()
-    {
-        if (_currentHost == null) return;
-
-        var width = (int) WindowHostContainer.ActualWidth;
-        var height = (int) WindowHostContainer.ActualHeight;
-
-        width = Math.Max(0, width);
-        height = Math.Max(0, height);
-
-        if (width > 0 && height > 0)
-        {
-            _currentHost.ResizeHostedWindow(width, height);
-        }
-    }
-
     private void UpdateManagedWindowLayout(bool activate)
     {
         IntPtr targetHandle = IntPtr.Zero;
@@ -436,7 +378,6 @@ public partial class MainWindow : Window
             !_viewModel.IsCommandPaletteOpen &&
             !_viewModel.IsContentTabActive &&
             !_viewModel.IsWebTabActive &&
-            !_viewModel.IsTileVisible &&
             WindowState != WindowState.Minimized &&
             _viewModel.SelectedTab != null &&
             _viewModel.TryGetExternallyManagedWindowHandle(_viewModel.SelectedTab, out targetHandle);

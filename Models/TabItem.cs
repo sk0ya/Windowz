@@ -23,9 +23,6 @@ public partial class TabItem : ObservableObject
     private bool _isMultiSelected;
 
     [ObservableProperty]
-    private bool _isTiled;
-
-    [ObservableProperty]
     private TabGroup? _group;
 
     [ObservableProperty]

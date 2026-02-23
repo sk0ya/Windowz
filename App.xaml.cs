@@ -4,7 +4,6 @@ using System.Security.Principal;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
-using WindowzTabManager.Interop;
 using WindowzTabManager.Services;
 using WindowzTabManager.ViewModels;
 

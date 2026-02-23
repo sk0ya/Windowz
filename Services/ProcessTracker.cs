@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
-using WindowzTabManager.Interop;
 
 namespace WindowzTabManager.Services;
 

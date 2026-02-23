@@ -12,28 +12,7 @@ public partial class MainWindow
 {
     private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.CurrentWindowHost))
-        {
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
-            {
-                // Skip if returning from content tab — the IsContentTabActive handler
-                // will call UpdateWindowHost after restoring container visibility.
-                if (ContentTabContainer.Visibility == Visibility.Visible)
-                    return;
-
-                // Skip if returning from web tab — the IsWebTabActive handler
-                // will call UpdateWindowHost after restoring container visibility.
-                // Without this guard, UpdateWindowHost is called twice (once here and
-                // once from the IsWebTabActive handler), causing a detach/re-attach
-                // cycle that breaks WS_CHILD window rendering.
-                if (WebTabContainer.Visibility == Visibility.Visible)
-                    return;
-
-                UpdateWindowHost(_viewModel.CurrentWindowHost);
-                UpdateManagedWindowLayout(activate: false);
-            });
-        }
-        else if (e.PropertyName == nameof(MainViewModel.ActiveContentKey))
+        if (e.PropertyName == nameof(MainViewModel.ActiveContentKey))
         {
             // Content tab switched (e.g. Settings → Startup Settings)
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
@@ -51,15 +30,8 @@ public partial class MainWindow
             {
                 if (_viewModel.IsContentTabActive)
                 {
-                    // Hide window host, tile, and web tabs, show content tab
+                    // Hide managed-window area and web tabs, then show content tab
                     WindowHostContainer.Visibility = Visibility.Collapsed;
-                    if (_currentHost != null)
-                    {
-                        WindowHostContent.Content = null;
-                        _currentHost = null;
-                    }
-
-                    TileContainer.Visibility = Visibility.Collapsed;
                     HideAllWebTabs();
                     WebTabContainer.Visibility = Visibility.Collapsed;
                     _currentWebTabId = null;
@@ -72,15 +44,11 @@ public partial class MainWindow
                     ContentTabContainer.Visibility = Visibility.Collapsed;
                     ContentTabContent.Content = null;
 
-                    // Restore WindowHostContainer and re-embed the window host in one place
-                    // to avoid race conditions with the CurrentWindowHost handler.
-                    WindowHostContainer.Visibility = _viewModel.SelectedTab != null
-                        ? Visibility.Visible
-                        : Visibility.Collapsed;
-
-                    if (_viewModel.CurrentWindowHost != null)
+                    if (!_viewModel.IsWebTabActive)
                     {
-                        UpdateWindowHost(_viewModel.CurrentWindowHost);
+                        WindowHostContainer.Visibility = _viewModel.SelectedTab != null
+                            ? Visibility.Visible
+                            : Visibility.Collapsed;
                     }
 
                     UpdateManagedWindowLayout(activate: false);
@@ -95,12 +63,6 @@ public partial class MainWindow
                 {
                     // Hide other containers
                     WindowHostContainer.Visibility = Visibility.Collapsed;
-                    if (_currentHost != null)
-                    {
-                        WindowHostContent.Content = null;
-                        _currentHost = null;
-                    }
-                    TileContainer.Visibility = Visibility.Collapsed;
                     ContentTabContainer.Visibility = Visibility.Collapsed;
                     ContentTabContent.Content = null;
 
@@ -114,12 +76,10 @@ public partial class MainWindow
                     WebTabContainer.Visibility = Visibility.Collapsed;
                     _currentWebTabId = null;
 
-                    if (!_viewModel.IsContentTabActive && !_viewModel.IsTileVisible)
+                    if (!_viewModel.IsContentTabActive)
                     {
                         WindowHostContainer.Visibility = _viewModel.SelectedTab != null
                             ? Visibility.Visible : Visibility.Collapsed;
-                        if (_viewModel.CurrentWindowHost != null)
-                            UpdateWindowHost(_viewModel.CurrentWindowHost);
                     }
 
                     UpdateManagedWindowLayout(activate: false);
@@ -137,83 +97,15 @@ public partial class MainWindow
                 }
             });
         }
-        else if (e.PropertyName == nameof(MainViewModel.IsTileVisible))
-        {
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
-            {
-                if (_viewModel.IsTileVisible)
-                {
-                    // Switch to tile view
-                    WindowHostContainer.Visibility = Visibility.Collapsed;
-                    if (_currentHost != null)
-                    {
-                        WindowHostContent.Content = null;
-                        _currentHost = null;
-                    }
-                    HideAllWebTabs();
-                    WebTabContainer.Visibility = Visibility.Collapsed;
-                    _currentWebTabId = null;
-
-                    // Only rebuild if tile container is empty (first time or after full stop)
-                    if (_tiledHosts.Count == 0 && _viewModel.CurrentTileLayout != null)
-                    {
-                        BuildTileLayout(_viewModel.CurrentTileLayout);
-                    }
-
-                    // Ensure all tiled hosts are visible
-                    foreach (var host in _tiledHosts)
-                        host.Visibility = Visibility.Visible;
-
-                    TileContainer.Visibility = Visibility.Visible;
-
-                    // Trigger resize for all tiled hosts and suppress border
-                    Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
-                    {
-                        foreach (var host in _tiledHosts)
-                        {
-                            if (host.Parent is ContentControl cc && cc.Parent is Border b)
-                            {
-                                var w = (int) b.ActualWidth;
-                                var h = (int) b.ActualHeight;
-                                if (w > 0 && h > 0)
-                                    host.ResizeHostedWindow(w, h);
-                            }
-                        }
-                        SuppressBorder();
-                        UpdateManagedWindowLayout(activate: false);
-                    });
-                }
-                else
-                {
-                    // Hide tile view but keep hosts attached
-                    // Restore visibility of tiled hosts first (they may have been hidden by picker)
-                    foreach (var host in _tiledHosts)
-                        host.Visibility = Visibility.Visible;
-
-                    TileContainer.Visibility = Visibility.Collapsed;
-                    WindowHostContainer.Visibility = Visibility.Visible;
-                    UpdateManagedWindowLayout(activate: false);
-                }
-            });
-        }
         else if (e.PropertyName == nameof(MainViewModel.IsCommandPaletteOpen))
         {
             if (_viewModel.IsCommandPaletteOpen)
             {
                 UpdateBackdropVisibility();
-                if (_viewModel.IsTileVisible)
-                {
-                    foreach (var host in _tiledHosts)
-                        host.Visibility = Visibility.Hidden;
-                }
-                else if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
+                if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
                 {
                     if (_webTabControls.TryGetValue(_currentWebTabId.Value, out var webControl))
                         webControl.Visibility = Visibility.Hidden;
-                }
-                else if (_currentHost != null)
-                {
-                    _currentHost.Visibility = Visibility.Hidden;
                 }
 
                 UpdateManagedWindowLayout(activate: false);
@@ -232,18 +124,16 @@ public partial class MainWindow
                 UpdateManagedWindowLayout(activate: true);
             }
         }
-        else if (e.PropertyName == nameof(MainViewModel.IsTiled))
-        {
-            if (!_viewModel.IsTiled)
-            {
-                // Tile layout fully destroyed — clean up hosts
-                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => { ClearTileLayout(); });
-            }
-        }
         else if (e.PropertyName == nameof(MainViewModel.SelectedTab))
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
+                if (!_viewModel.IsContentTabActive && !_viewModel.IsWebTabActive)
+                {
+                    WindowHostContainer.Visibility = _viewModel.SelectedTab != null
+                        ? Visibility.Visible
+                        : Visibility.Collapsed;
+                }
                 UpdateManagedWindowLayout(activate: true);
             });
         }

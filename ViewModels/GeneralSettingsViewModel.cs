@@ -31,9 +31,6 @@ public partial class GeneralSettingsViewModel : ObservableObject
     private string _embedCloseAction = "CloseApp";
 
     [ObservableProperty]
-    private bool _hideEmbeddedFromTaskbar = true;
-
-    [ObservableProperty]
     private bool _autoEmbedNewWindows = false;
 
     [ObservableProperty]
@@ -97,7 +94,6 @@ public partial class GeneralSettingsViewModel : ObservableObject
         CloseWindowsOnExit = settings.CloseWindowsOnExit;
         TabHeaderPosition = settings.TabHeaderPosition;
         EmbedCloseAction = settings.EmbedCloseAction;
-        HideEmbeddedFromTaskbar = settings.HideEmbeddedFromTaskbar;
         AutoEmbedNewWindows = settings.AutoEmbedNewWindows;
         LoadExclusions();
         SelectedAccentColor = settings.AccentColor;
@@ -131,11 +127,6 @@ public partial class GeneralSettingsViewModel : ObservableObject
     {
         _settingsManager.Settings.EmbedCloseAction = value;
         _settingsManager.SaveSettings();
-    }
-
-    partial void OnHideEmbeddedFromTaskbarChanged(bool value)
-    {
-        _settingsManager.SetHideEmbeddedFromTaskbar(value);
     }
 
     partial void OnAutoEmbedNewWindowsChanged(bool value)

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using WindowzTabManager.Interop;
 using WindowzTabManager.Models;
 
 namespace WindowzTabManager.Services;
@@ -202,42 +201,4 @@ public partial class TabManager
         }
     }
 
-    public void StartTile(IEnumerable<TabItem> tabs)
-    {
-        // Stop existing tile if any
-        StopTile();
-
-        var tabList = tabs.ToList();
-        if (tabList.Count < 2) return;
-        if (tabList.Any(t => !t.IsContentTab && !t.IsWebTab && !CanTileTab(t)))
-            return;
-
-        CurrentTileLayout = new TileLayout(tabList);
-        ClearMultiSelection();
-    }
-
-    public void StopTile()
-    {
-        if (CurrentTileLayout == null) return;
-
-        CurrentTileLayout.Deactivate();
-        CurrentTileLayout = null;
-    }
-
-    private void UpdateTileForRemovedTab(TabItem tab)
-    {
-        if (CurrentTileLayout == null || !tab.IsTiled) return;
-
-        var hasEnoughTabs = CurrentTileLayout.RemoveTab(tab);
-        if (hasEnoughTabs)
-        {
-            // Rebuild the tile layout with remaining tabs
-            TileLayoutUpdated?.Invoke(this, EventArgs.Empty);
-        }
-        else
-        {
-            // Not enough tabs to tile, stop tiling
-            StopTile();
-        }
-    }
 }

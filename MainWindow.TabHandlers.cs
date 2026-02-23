@@ -100,16 +100,6 @@ public partial class MainWindow
         }
     }
 
-    private void TileSelectedTabs_Click(object sender, RoutedEventArgs e)
-    {
-        _viewModel.TileSelectedTabsCommand.Execute(null);
-    }
-
-    private void StopTile_Click(object sender, RoutedEventArgs e)
-    {
-        _viewModel.StopTileCommand.Execute(null);
-    }
-
     private void CloseTab_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement element && element.Tag is Models.TabItem tab)
@@ -132,19 +122,7 @@ public partial class MainWindow
         {
             var header = item.Header?.ToString() ?? "";
 
-            if (header == "タイル表示")
-            {
-                item.Visibility = isWindowTab && _tabManager.CanTileTab(tab)
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
-            }
-            else if (header == "タイル解除")
-            {
-                item.Visibility = isWindowTab && _tabManager.CanTileTab(tab) && tab.IsTiled
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
-            }
-            else if (header.StartsWith("Startup"))
+            if (header.StartsWith("Startup"))
             {
                 if (!string.IsNullOrEmpty(path) && (isWindowTab || tab.IsWebTab))
                 {

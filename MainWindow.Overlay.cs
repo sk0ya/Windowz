@@ -13,20 +13,11 @@ public partial class MainWindow
     {
         _viewModel.OpenWindowPickerCommand.Execute(null);
         UpdateBackdropVisibility();
-        // Hide embedded window(s) / web tab while picker is open
-        if (_viewModel.IsTileVisible)
-        {
-            foreach (var host in _tiledHosts)
-                host.Visibility = Visibility.Hidden;
-        }
-        else if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
+
+        if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
         {
             if (_webTabControls.TryGetValue(_currentWebTabId.Value, out var webControl))
                 webControl.Visibility = Visibility.Hidden;
-        }
-        else if (_currentHost != null)
-        {
-            _currentHost.Visibility = Visibility.Hidden;
         }
 
         UpdateManagedWindowLayout(activate: false);
@@ -34,19 +25,10 @@ public partial class MainWindow
 
     private void RestoreEmbeddedWindow()
     {
-        if (_viewModel.IsTileVisible)
-        {
-            foreach (var host in _tiledHosts)
-                host.Visibility = Visibility.Visible;
-        }
-        else if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
+        if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
         {
             if (_webTabControls.TryGetValue(_currentWebTabId.Value, out var webControl))
                 webControl.Visibility = Visibility.Visible;
-        }
-        else if (_currentHost != null)
-        {
-            _currentHost.Visibility = Visibility.Visible;
         }
 
         UpdateBackdropVisibility();
@@ -57,8 +39,7 @@ public partial class MainWindow
 
     private void RequestEmbeddedContentRedraw()
     {
-        // WS_POPUP + SetParent の埋め込みウィンドウは、親 HWND の再表示直後に
-        // 再描画が間に合わないことがあるため、Render と ApplicationIdle の2回で補償する。
+        // Overlay close直後の再描画ゆらぎを2回のディスパッチで吸収する。
         Dispatcher.BeginInvoke(DispatcherPriority.Render, ForceEmbeddedContentRedraw);
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, ForceEmbeddedContentRedraw);
     }
@@ -67,13 +48,6 @@ public partial class MainWindow
     {
         if (_viewModel.IsCommandPaletteOpen || _viewModel.IsWindowPickerOpen)
             return;
-
-        if (_viewModel.IsTileVisible)
-        {
-            foreach (var host in _tiledHosts)
-                host.ForceRedraw();
-            return;
-        }
 
         if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
         {
@@ -84,8 +58,6 @@ public partial class MainWindow
             }
             return;
         }
-
-        _currentHost?.ForceRedraw();
     }
 
     private void OnCommandPaletteItemExecuted(object? sender, CommandPaletteItem item)

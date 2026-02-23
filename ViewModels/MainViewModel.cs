@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
-using WindowzTabManager.Interop;
 using WindowzTabManager.Models;
 using WindowzTabManager.Services;
 
@@ -22,9 +21,6 @@ public partial class MainViewModel : ObservableObject
     private TabItem? _selectedTab;
 
     [ObservableProperty]
-    private WindowHost? _currentWindowHost;
-
-    [ObservableProperty]
     private bool _isWindowPickerOpen;
 
     [ObservableProperty]
@@ -32,21 +28,6 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _statusMessage = "Ready";
-
-    [ObservableProperty]
-    private TileLayout? _currentTileLayout;
-
-    /// <summary>
-    /// True when a tile layout exists (may or may not be visible).
-    /// </summary>
-    [ObservableProperty]
-    private bool _isTiled;
-
-    /// <summary>
-    /// True when the tile view is currently shown (active tab is a tiled tab).
-    /// </summary>
-    [ObservableProperty]
-    private bool _isTileVisible;
 
     /// <summary>
     /// True when the active tab is a content tab (e.g. Settings).
@@ -86,7 +67,6 @@ public partial class MainViewModel : ObservableObject
         _settingsManager = settingsManager;
 
         _tabManager.ActiveTabChanged += OnActiveTabChanged;
-        _tabManager.TileLayoutChanged += OnTileLayoutChanged;
         _hotkeyManager.HotkeyPressed += OnHotkeyPressed;
     }
 
@@ -97,8 +77,6 @@ public partial class MainViewModel : ObservableObject
         if (tab != null && tab.IsContentTab)
         {
             // Content tab (e.g. Settings)
-            IsTileVisible = false;
-            CurrentWindowHost = null;
             IsContentTabActive = true;
             ActiveContentKey = tab.ContentKey;
             IsWebTabActive = false;
@@ -107,40 +85,19 @@ public partial class MainViewModel : ObservableObject
         else if (tab != null && tab.IsWebTab)
         {
             // Web tab
-            IsTileVisible = false;
-            CurrentWindowHost = null;
             IsContentTabActive = false;
             ActiveContentKey = null;
             IsWebTabActive = true;
             ActiveWebTabId = tab.Id;
         }
-        else if (IsTiled && tab != null && tab.IsTiled)
-        {
-            // Clicked a tiled tab — show tile view
-            IsTileVisible = true;
-            CurrentWindowHost = null;
-            IsContentTabActive = false;
-            ActiveContentKey = null;
-            IsWebTabActive = false;
-            ActiveWebTabId = null;
-        }
         else
         {
-            // Clicked a non-tiled tab or no tile layout — show single view
-            IsTileVisible = false;
-            CurrentWindowHost = tab != null ? _tabManager.GetWindowHost(tab) : null;
+            // Standard managed window tab
             IsContentTabActive = false;
             ActiveContentKey = null;
             IsWebTabActive = false;
             ActiveWebTabId = null;
         }
-    }
-
-    private void OnTileLayoutChanged(object? sender, TileLayout? layout)
-    {
-        CurrentTileLayout = layout;
-        IsTiled = layout?.IsActive == true;
-        IsTileVisible = layout?.IsActive == true;
     }
 
     private void OnHotkeyPressed(object? sender, HotkeyBinding binding)
@@ -181,12 +138,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // Non-command methods for multi-parameter operations
-    public WindowHost? GetWindowHost(TabItem tab)
-    {
-        return _tabManager.GetWindowHost(tab);
-    }
-
     public bool IsExternallyManagedTab(TabItem tab)
     {
         return _tabManager.IsExternallyManagedTab(tab);
@@ -214,7 +165,6 @@ public partial class MainViewModel : ObservableObject
         _tabManager.StopCleanupTimer();
 
         _tabManager.ActiveTabChanged -= OnActiveTabChanged;
-        _tabManager.TileLayoutChanged -= OnTileLayoutChanged;
         _hotkeyManager.HotkeyPressed -= OnHotkeyPressed;
 
         switch (_settingsManager.Settings.CloseWindowsOnExit)

@@ -11,7 +11,7 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
         {
             ApplyTabHeaderPosition(position);
-            UpdateWindowHostSize();
+            UpdateManagedWindowLayout(activate: false);
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, UpdateBlockerPosition);
         });
     }
@@ -336,7 +336,7 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            UpdateWindowHostSize();
+            UpdateManagedWindowLayout(activate: false);
             UpdateBlockerPosition();
         });
     }
