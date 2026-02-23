@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -11,11 +14,20 @@ namespace WindowzTabManager;
 
 public partial class MainWindow : Window
 {
+    private readonly record struct StartupAppDefinition(string FileName, string? Arguments = null);
+
+    // 起動時に自動で起動してタブ登録するアプリ
+    private static readonly StartupAppDefinition[] DefaultStartupApps =
+    {
+        new("notepad.exe"),
+    };
+
     private readonly List<(ManagedWindow Window, TabItemControl Control)> _tabs = new();
     private int _activeIndex = -1;
     private readonly DispatcherTimer _timer;
     private readonly DispatcherTimer _dragSyncTimer;
     private bool _isSyncingFromManagedWindowMove;
+    private bool _startupAppsLaunched;
 
     public MainWindow()
     {
@@ -32,6 +44,7 @@ public partial class MainWindow : Window
         LocationChanged  += (_, _) => RepositionActiveWindow();
         SizeChanged      += (_, _) => RepositionActiveWindow();
         StateChanged     += OnStateChanged;
+        Loaded           += OnMainWindowLoaded;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -168,6 +181,186 @@ public partial class MainWindow : Window
         picker.Owner = this;
         if (picker.ShowDialog() == true && picker.SelectedWindow != null)
             AddWindow(picker.SelectedWindow);
+    }
+
+    private async void OnMainWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        if (_startupAppsLaunched) return;
+        _startupAppsLaunched = true;
+        await LaunchDefaultAppsAsync();
+    }
+
+    private async Task LaunchDefaultAppsAsync()
+    {
+        foreach (var app in DefaultStartupApps)
+            await LaunchAndRegisterAppAsync(app);
+    }
+
+    private async Task LaunchAndRegisterAppAsync(StartupAppDefinition app)
+    {
+        var beforeHandles = GetTrackableTopLevelWindowHandles();
+        var targetProcessName = TryGetProcessName(app.FileName);
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = app.FileName,
+                UseShellExecute = true
+            };
+            if (!string.IsNullOrWhiteSpace(app.Arguments))
+                startInfo.Arguments = app.Arguments;
+
+            using var process = Process.Start(startInfo);
+            if (process == null) return;
+
+            var hWnd = await WaitForMainWindowHandleAsync(process, TimeSpan.FromSeconds(10));
+            if (hWnd == IntPtr.Zero)
+            {
+                hWnd = await WaitForLaunchedWindowHandleAsync(
+                    beforeHandles,
+                    targetProcessName,
+                    TimeSpan.FromSeconds(10));
+            }
+
+            if (hWnd == IntPtr.Zero) return;
+            if (_tabs.Any(t => t.Window.Handle == hWnd)) return;
+
+            var window = new ManagedWindow { Handle = hWnd };
+            window.RefreshTitle();
+            if (string.IsNullOrWhiteSpace(window.Title))
+                window.Title = app.FileName;
+
+            AddWindow(window);
+        }
+        catch
+        {
+            // 起動失敗は他のデフォルトアプリ起動を継続
+        }
+    }
+
+    private async Task<IntPtr> WaitForLaunchedWindowHandleAsync(
+        HashSet<IntPtr> beforeHandles,
+        string? targetProcessName,
+        TimeSpan timeout)
+    {
+        var started = Stopwatch.StartNew();
+        while (started.Elapsed < timeout)
+        {
+            var currentHandles = GetTrackableTopLevelWindowHandles();
+
+            var candidate = currentHandles
+                .Where(h => !beforeHandles.Contains(h))
+                .FirstOrDefault(h => IsCandidateForProcess(h, targetProcessName));
+            if (candidate != IntPtr.Zero)
+                return candidate;
+
+            await Task.Delay(100);
+        }
+
+        // 単一インスタンスアプリのため新規ウィンドウが増えない場合は、既存ウィンドウも対象にする
+        var fallback = GetTrackableTopLevelWindowHandles()
+            .FirstOrDefault(h => IsCandidateForProcess(h, targetProcessName));
+        return fallback;
+    }
+
+    private HashSet<IntPtr> GetTrackableTopLevelWindowHandles()
+    {
+        var handles = new HashSet<IntPtr>();
+        var thisHandle = new WindowInteropHelper(this).Handle;
+
+        NativeMethods.EnumWindows((hWnd, _) =>
+        {
+            try
+            {
+                if (hWnd == thisHandle) return true;
+                if (!NativeMethods.IsWindowVisible(hWnd)) return true;
+                if (NativeMethods.GetAncestor(hWnd, NativeMethods.GA_ROOT) != hWnd) return true;
+
+                var titleLen = NativeMethods.GetWindowTextLength(hWnd);
+                if (titleLen == 0) return true;
+
+                var exStyle = NativeMethods.GetWindowLong(hWnd, NativeMethods.GWL_EXSTYLE);
+                if ((exStyle & NativeMethods.WS_EX_TOOLWINDOW) != 0) return true;
+
+                handles.Add(hWnd);
+            }
+            catch
+            {
+                // 個々のウィンドウ取得エラーは無視
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        return handles;
+    }
+
+    private bool IsCandidateForProcess(IntPtr hWnd, string? targetProcessName)
+    {
+        if (_tabs.Any(t => t.Window.Handle == hWnd))
+            return false;
+        if (targetProcessName == null)
+            return true;
+
+        return TryGetWindowProcessName(hWnd, out var processName)
+            && string.Equals(processName, targetProcessName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryGetWindowProcessName(IntPtr hWnd, out string? processName)
+    {
+        processName = null;
+        try
+        {
+            NativeMethods.GetWindowThreadProcessId(hWnd, out var pid);
+            if (pid == 0) return false;
+
+            using var process = Process.GetProcessById((int)pid);
+            processName = process.ProcessName;
+            return !string.IsNullOrWhiteSpace(processName);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string? TryGetProcessName(string fileName)
+    {
+        try
+        {
+            var name = Path.GetFileNameWithoutExtension(fileName);
+            return string.IsNullOrWhiteSpace(name) ? null : name;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static async Task<IntPtr> WaitForMainWindowHandleAsync(Process process, TimeSpan timeout)
+    {
+        try { process.WaitForInputIdle(2000); } catch { }
+
+        var started = Stopwatch.StartNew();
+        while (started.Elapsed < timeout)
+        {
+            try
+            {
+                process.Refresh();
+                if (process.HasExited) break;
+                if (process.MainWindowHandle != IntPtr.Zero)
+                    return process.MainWindowHandle;
+            }
+            catch
+            {
+                break;
+            }
+
+            await Task.Delay(100);
+        }
+
+        return IntPtr.Zero;
     }
 
     private void AddWindow(ManagedWindow window)
