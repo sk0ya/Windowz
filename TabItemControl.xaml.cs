@@ -13,11 +13,11 @@ public partial class TabItemControl : UserControl
 
     private bool _isActive;
 
-    private static readonly SolidColorBrush ActiveBg  = new(Color.FromRgb(0x2D, 0x2D, 0x2D));
-    private static readonly SolidColorBrush HoverBg   = new(Color.FromRgb(0x25, 0x25, 0x26));
-    private static readonly SolidColorBrush NormalBg  = new(Color.FromRgb(0x1E, 0x1E, 0x1E));
-    private static readonly SolidColorBrush ActiveText = new(Colors.White);
-    private static readonly SolidColorBrush NormalText = new(Color.FromRgb(0xCC, 0xCC, 0xCC));
+    private static readonly SolidColorBrush ActiveBg = new(Color.FromRgb(0x2A, 0x2D, 0x33));
+    private static readonly SolidColorBrush HoverBg = new(Color.FromRgb(0x33, 0x37, 0x42));
+    private static readonly SolidColorBrush NormalBg = Brushes.Transparent;
+    private static readonly SolidColorBrush ActiveText = new(Color.FromRgb(0xF3, 0xF4, 0xF6));
+    private static readonly SolidColorBrush NormalText = new(Color.FromRgb(0xC3, 0xC8, 0xD2));
 
     internal ManagedWindow? ManagedWindow { get; private set; }
 

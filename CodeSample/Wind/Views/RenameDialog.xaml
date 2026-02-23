@@ -1,0 +1,20 @@
+<Window x:Class="Wind.Views.RenameDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="タブ名を変更"
+        Width="350" Height="140"
+        ResizeMode="NoResize"
+        WindowStyle="ToolWindow"
+        Background="{DynamicResource ApplicationBackgroundBrush}">
+
+    <StackPanel Margin="16,12">
+        <TextBlock Text="新しいタブ名を入力してください" Margin="0,0,0,8"
+                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" FontSize="12"/>
+        <ui:TextBox x:Name="NameBox" PlaceholderText="タブ名"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <ui:Button Content="OK" Click="OK_Click" Appearance="Primary" Margin="0,0,8,0" Padding="16,4"/>
+            <ui:Button Content="キャンセル" Click="Cancel_Click" Appearance="Secondary" Padding="16,4"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

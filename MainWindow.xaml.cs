@@ -1,586 +1,531 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using WindowzTabManager.Interop;
+using WindowzTabManager.Models;
+using WindowzTabManager.Services;
+using WindowzTabManager.ViewModels;
+using WindowzTabManager.Views;
+using WindowzTabManager.Views.Settings;
 
 namespace WindowzTabManager;
 
 public partial class MainWindow : Window
 {
-    private readonly record struct StartupAppDefinition(string FileName, string? Arguments = null);
-
-    // 起動時に自動で起動してタブ登録するアプリ
-    private static readonly StartupAppDefinition[] DefaultStartupApps =
-    {
-        new("notepad.exe"),
-    };
-
-    private readonly List<(ManagedWindow Window, TabItemControl Control)> _tabs = new();
-    private int _activeIndex = -1;
-    private readonly DispatcherTimer _timer;
-    private readonly DispatcherTimer _dragSyncTimer;
-    private bool _isSyncingFromManagedWindowMove;
-    private bool _startupAppsLaunched;
+    private readonly MainViewModel _viewModel;
+    private readonly HotkeyManager _hotkeyManager;
+    private readonly TabManager _tabManager;
+    private readonly WindowManager _windowManager;
+    private readonly SettingsManager _settingsManager;
+    private WindowHost? _currentHost;
+    private IntPtr _activeManagedWindowHandle;
+    private Point? _dragStartPoint;
+    private bool _isDragging;
+    private readonly List<WindowHost> _tiledHosts = new();
+    private GeneralSettingsPage? _generalSettingsPage;
+    private HotkeySettingsPage? _hotkeySettingsPage;
+    private StartupSettingsPage? _startupSettingsPage;
+    private QuickLaunchSettingsPage? _quickLaunchSettingsPage;
+    private ProcessInfoPage? _processInfoPage;
+    private string _currentTabPosition = "Top";
+    private bool _isTabBarCollapsed;
+    private bool _wasMinimized;
+    private readonly Dictionary<Guid, WebTabControl> _webTabControls = new();
+    private Guid? _currentWebTabId;
+    private const int CloseWaitTimeoutMs = 10000;
+    private bool _isWaitingForCloseTargets;
+    private bool _skipCloseWaitOnce;
+    private bool _isCleanupCompleted;
+    private CancellationTokenSource? _closeWaitCts;
 
     public MainWindow()
     {
         InitializeComponent();
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += OnTimerTick;
-        _timer.Start();
+        _viewModel = App.GetService<MainViewModel>();
+        _hotkeyManager = App.GetService<HotkeyManager>();
+        _tabManager = App.GetService<TabManager>();
+        _windowManager = App.GetService<WindowManager>();
+        _settingsManager = App.GetService<SettingsManager>();
 
-        _dragSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-        _dragSyncTimer.Tick += OnDragSyncTick;
-        _dragSyncTimer.Start();
+        DataContext = _viewModel;
+        WindowPickerControl.DataContext = App.GetService<WindowPickerViewModel>();
 
-        LocationChanged  += (_, _) => RepositionActiveWindow();
-        SizeChanged      += (_, _) => RepositionActiveWindow();
-        StateChanged     += OnStateChanged;
-        Loaded           += OnMainWindowLoaded;
-    }
+        Loaded += MainWindow_Loaded;
+        Closing += MainWindow_Closing;
+        SizeChanged += MainWindow_SizeChanged;
+        LocationChanged += MainWindow_LocationChanged;
+        Activated += MainWindow_Activated;
+        Deactivated += MainWindow_Deactivated;
+        WindowHostContainer.SizeChanged += WindowHostContainer_SizeChanged;
 
-    protected override void OnSourceInitialized(EventArgs e)
-    {
-        base.OnSourceInitialized(e);
-        // WM_NCHITTEST フックを登録 (ウィンドウ枠でのリサイズを有効化)
-        var hwndSource = HwndSource.FromVisual(this) as HwndSource;
-        hwndSource?.AddHook(WndProc);
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
 
-        KeyDown += OnKeyDown;
-    }
-
-    // ===== コンテンツエリアの物理ピクセル座標を取得 =====
-    private (int x, int y, int w, int h) GetContentAreaPixels()
-    {
-        var pos = ContentAreaBorder.PointToScreen(new Point(0, 0));
-        var dpi = VisualTreeHelper.GetDpi(this);
-        int w = (int)(ContentAreaBorder.ActualWidth  * dpi.DpiScaleX);
-        int h = (int)(ContentAreaBorder.ActualHeight * dpi.DpiScaleY);
-        return ((int)pos.X, (int)pos.Y, w, h);
-    }
-
-    // ===== WM_NCHITTEST: ウィンドウ枠リサイズの有効化 =====
-    private static IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-    {
-        const int WM_NCHITTEST   = 0x0084;
-        const int HTTOPLEFT      = 13;
-        const int HTTOPRIGHT     = 14;
-        const int HTBOTTOMLEFT   = 16;
-        const int HTBOTTOMRIGHT  = 17;
-        const int HTTOP          = 12;
-        const int HTBOTTOM       = 15;
-        const int HTLEFT         = 10;
-        const int HTRIGHT        = 11;
-
-        if (msg == WM_NCHITTEST)
+        // Wire up window picker events
+        var pickerVm = (WindowPickerViewModel) WindowPickerControl.DataContext;
+        pickerVm.WindowSelected += (s, window) =>
         {
-            int x = (short)(lParam.ToInt64() & 0xFFFF);
-            int y = (short)((lParam.ToInt64() >> 16) & 0xFFFF);
+            _viewModel.AddWindowCommand.Execute(window);
+            RestoreEmbeddedWindow();
+        };
+        pickerVm.Cancelled += (s, e) =>
+        {
+            _viewModel.CloseWindowPickerCommand.Execute(null);
+            RestoreEmbeddedWindow();
+        };
+        pickerVm.QuickLaunchSettingsRequested += (s, e) =>
+        {
+            _viewModel.CloseWindowPickerCommand.Execute(null);
+            RestoreEmbeddedWindow();
+            _viewModel.OpenContentTabCommand.Execute("QuickLaunchSettings");
+        };
+        pickerVm.WebTabRequested += (s, url) =>
+        {
+            _viewModel.CloseWindowPickerCommand.Execute(null);
+            RestoreEmbeddedWindow();
+            _viewModel.OpenWebTabCommand.Execute(url);
+        };
 
-            NativeMethods.GetWindowRect(hwnd, out var wr);
-            const int b = 6; // リサイズ感知幅 (物理ピクセル)
+        // Wire up command palette events
+        CommandPaletteControl.DataContext = App.GetService<CommandPaletteViewModel>();
+        var paletteVm = (CommandPaletteViewModel)CommandPaletteControl.DataContext;
+        paletteVm.ItemExecuted += OnCommandPaletteItemExecuted;
+        paletteVm.Cancelled += (s, e) =>
+        {
+            _viewModel.CloseCommandPaletteCommand.Execute(null);
+        };
 
-            bool onLeft   = x < wr.Left   + b;
-            bool onRight  = x > wr.Right  - b;
-            bool onTop    = y < wr.Top    + b;
-            bool onBottom = y > wr.Bottom - b;
+        _tabManager.CloseWindRequested += (s, e) => { Close(); };
 
-            if (onTop    && onLeft)  { handled = true; return (IntPtr)HTTOPLEFT;     }
-            if (onTop    && onRight) { handled = true; return (IntPtr)HTTOPRIGHT;    }
-            if (onBottom && onLeft)  { handled = true; return (IntPtr)HTBOTTOMLEFT;  }
-            if (onBottom && onRight) { handled = true; return (IntPtr)HTBOTTOMRIGHT; }
-            if (onTop)    { handled = true; return (IntPtr)HTTOP;    }
-            if (onBottom) { handled = true; return (IntPtr)HTBOTTOM; }
-            if (onLeft)   { handled = true; return (IntPtr)HTLEFT;   }
-            if (onRight)  { handled = true; return (IntPtr)HTRIGHT;  }
-        }
-        return IntPtr.Zero;
+        _tabManager.TileLayoutUpdated += (s, e) =>
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                if (_viewModel.CurrentTileLayout != null)
+                {
+                    ClearTileLayout();
+                    BuildTileLayout(_viewModel.CurrentTileLayout);
+                }
+            });
+        };
+
+        // Subscribe to tab position changes
+        _settingsManager.TabHeaderPositionChanged += OnTabHeaderPositionChanged;
+
+        // Apply initial tab position
+        ApplyTabHeaderPosition(_settingsManager.Settings.TabHeaderPosition);
     }
 
-    // ===== タイトルバー: ドラッグ・最大化 =====
-    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        if (e.ClickCount >= 2)
+        _hotkeyManager.Initialize(this, _settingsManager);
+
+        // Hook into Windows messages for proper maximize handling
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var source = HwndSource.FromHwnd(hwnd);
+        source?.AddHook(WndProc);
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_isCleanupCompleted)
+            return;
+
+        if (_skipCloseWaitOnce)
         {
-            WindowState = WindowState == WindowState.Maximized
-                ? WindowState.Normal : WindowState.Maximized;
+            _skipCloseWaitOnce = false;
+            PerformShutdownCleanup();
             return;
         }
-        DragMove();
+
+        if (_isWaitingForCloseTargets)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        if (TryStartCloseTargetWait(e))
+            return;
+
+        PerformShutdownCleanup();
     }
 
-    // ===== ウィンドウコントロールボタン =====
+    private bool TryStartCloseTargetWait(System.ComponentModel.CancelEventArgs e)
+    {
+        var setting = _settingsManager.Settings.CloseWindowsOnExit;
+        if (setting != "All" && setting != "StartupOnly")
+            return false;
+
+        bool startupOnly = setting == "StartupOnly";
+        var tabsSnapshot = _tabManager.Tabs.ToList();
+        var pidsToWait = new HashSet<int>();
+        var tabIdsToWait = new HashSet<Guid>();
+
+        foreach (var tab in tabsSnapshot)
+        {
+            bool isEmbeddedTab = !tab.IsContentTab && !tab.IsWebTab;
+            bool shouldWaitByPid = isEmbeddedTab && (!startupOnly || tab.IsLaunchedAtStartup);
+
+            if (shouldWaitByPid)
+            {
+                int processId = 0;
+                var host = _tabManager.GetWindowHost(tab);
+                if (host != null)
+                {
+                    processId = host.HostedProcessId;
+                }
+                else if (_tabManager.IsExternallyManagedTab(tab) && tab.Window?.ProcessId is int managedPid)
+                {
+                    processId = managedPid;
+                }
+                else
+                {
+                    tabIdsToWait.Add(tab.Id);
+                    TryRemoveTab(tab);
+                    continue;
+                }
+
+                if (tab.Window?.Handle is IntPtr hwnd && hwnd != IntPtr.Zero)
+                {
+                    NativeMethods.PostMessage(hwnd, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+                }
+
+                if (processId != 0 && IsProcessRunning(processId))
+                {
+                    pidsToWait.Add(processId);
+                }
+                else
+                {
+                    tabIdsToWait.Add(tab.Id);
+                }
+
+                continue;
+            }
+
+            // Non-embedded tabs and non-target embedded tabs are tracked by tab closure.
+            tabIdsToWait.Add(tab.Id);
+            TryRemoveTab(tab);
+        }
+
+        tabIdsToWait.RemoveWhere(tabId => !_tabManager.Tabs.Any(t => t.Id == tabId));
+        pidsToWait.RemoveWhere(pid => !IsProcessRunning(pid));
+
+        if (pidsToWait.Count == 0 && tabIdsToWait.Count == 0)
+            return false;
+
+        e.Cancel = true;
+        _isWaitingForCloseTargets = true;
+
+        _closeWaitCts?.Cancel();
+        _closeWaitCts?.Dispose();
+        _closeWaitCts = new CancellationTokenSource();
+        _ = WaitForCloseTargetsAsync(pidsToWait, tabIdsToWait, _closeWaitCts.Token);
+        return true;
+    }
+
+    private static bool IsProcessRunning(int pid)
+    {
+        try
+        {
+            using var proc = Process.GetProcessById(pid);
+            return !proc.HasExited;
+        }
+        catch { return false; }
+    }
+
+    private async Task WaitForCloseTargetsAsync(
+        HashSet<int> pidsToWait,
+        HashSet<Guid> tabIdsToWait,
+        CancellationToken cancellationToken)
+    {
+        var sw = Stopwatch.StartNew();
+
+        try
+        {
+            while (sw.ElapsedMilliseconds < CloseWaitTimeoutMs)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                pidsToWait.RemoveWhere(pid => !IsProcessRunning(pid));
+                tabIdsToWait.RemoveWhere(tabId => !_tabManager.Tabs.Any(t => t.Id == tabId));
+
+                if (pidsToWait.Count == 0 && tabIdsToWait.Count == 0)
+                    break;
+
+                await Task.Delay(100, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (_isCleanupCompleted)
+                return;
+
+            _isWaitingForCloseTargets = false;
+            _skipCloseWaitOnce = true;
+            Close();
+        });
+    }
+
+    private void TryRemoveTab(TabItem tab)
+    {
+        if (!_tabManager.Tabs.Contains(tab))
+            return;
+
+        try
+        {
+            _tabManager.RemoveTab(tab);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to close tab {tab.Title}: {ex.Message}");
+        }
+    }
+
+    private void PerformShutdownCleanup()
+    {
+        if (_isCleanupCompleted)
+            return;
+
+        _isCleanupCompleted = true;
+        _isWaitingForCloseTargets = false;
+
+        RemoveManagedWindowSyncHooks();
+
+        _closeWaitCts?.Cancel();
+        _closeWaitCts?.Dispose();
+        _closeWaitCts = null;
+
+        _settingsManager.TabHeaderPositionChanged -= OnTabHeaderPositionChanged;
+
+        // Dispose all web tab controls
+        foreach (var control in _webTabControls.Values.ToList())
+        {
+            try
+            {
+                control.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to dispose web tab control: {ex.Message}");
+            }
+        }
+        _webTabControls.Clear();
+
+        try
+        {
+            _viewModel.Cleanup();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Cleanup failed during shutdown: {ex.Message}");
+        }
+    }
+
+    private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateWindowHostSize();
+        UpdateManagedWindowLayout(activate: false);
+    }
+
+    private void MainWindow_LocationChanged(object? sender, EventArgs e)
+    {
+        UpdateManagedWindowLayout(activate: false);
+    }
+
+    private void WindowHostContainer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateWindowHostSize();
+        UpdateManagedWindowLayout(activate: false);
+    }
+
+    private void UpdateBlockerPosition()
+    {
+        // Windowz behavior: no resize helper blocker.
+    }
+
+    private void Window_StateChanged(object sender, EventArgs e)
+    {
+        // Update maximize button icon
+        if (WindowState == WindowState.Maximized)
+        {
+            MaximizeIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.SquareMultiple24;
+        }
+        else
+        {
+            MaximizeIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.Maximize24;
+        }
+
+        UpdateWindowHostSize();
+
+        if (_wasMinimized && WindowState != WindowState.Minimized)
+        {
+            // Allow UpdateManagedWindowLayout to bring the managed window to the
+            // foreground regardless of whether the handle has changed since minimize.
+            _activeManagedWindowHandle = IntPtr.Zero;
+        }
+
+        _wasMinimized = WindowState == WindowState.Minimized;
+        UpdateManagedWindowLayout(activate: false);
+    }
+
     private void MinimizeButton_Click(object sender, RoutedEventArgs e)
-        => WindowState = WindowState.Minimized;
+    {
+        WindowState = WindowState.Minimized;
+    }
 
     private void MaximizeButton_Click(object sender, RoutedEventArgs e)
     {
-        WindowState = WindowState == WindowState.Maximized
-            ? WindowState.Normal : WindowState.Maximized;
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     }
 
-    private void CloseWindowButton_Click(object sender, RoutedEventArgs e)
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        ReleaseAllWindows();
-        Application.Current.Shutdown();
+        Close();
     }
 
-    // 最大化/復元でボタンアイコンを切り替え
-    private void OnStateChanged(object? sender, EventArgs e)
+    private void UpdateWindowHost(WindowHost? newHost)
     {
-        MaxRestoreButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
-
-        if (WindowState == WindowState.Minimized)
+        if (_currentHost != null)
         {
-            // 管理ウィンドウを非表示
-            if (_activeIndex >= 0 && _activeIndex < _tabs.Count)
-            {
-                var (win, _) = _tabs[_activeIndex];
-                if (win.IsAlive) NativeMethods.ShowWindow(win.Handle, NativeMethods.SW_HIDE);
-            }
+            WindowHostContent.Content = null;
+            _currentHost = null;
         }
-        else
+
+        _currentHost = newHost;
+
+        if (_currentHost != null)
         {
-            RepositionActiveWindow(forceShow: true);
+            WindowHostContent.Content = _currentHost;
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, UpdateWindowHostSize);
         }
+
+        UpdateManagedWindowLayout(activate: false);
     }
 
-    // ===== ハンバーガーメニュー =====
-    private void HamburgerButton_Click(object sender, RoutedEventArgs e)
-        => ContextMenu!.IsOpen = true;
-
-    // ===== キーボードショートカット =====
-    private void OnKeyDown(object sender, KeyEventArgs e)
+    private void UpdateWindowHostSize()
     {
-        if (Keyboard.Modifiers != ModifierKeys.Control) return;
-        switch (e.Key)
+        if (_currentHost == null) return;
+
+        var width = (int) WindowHostContainer.ActualWidth;
+        var height = (int) WindowHostContainer.ActualHeight;
+
+        width = Math.Max(0, width);
+        height = Math.Max(0, height);
+
+        if (width > 0 && height > 0)
         {
-            case Key.T:  OpenWindowPicker(); e.Handled = true; break;
-            case Key.W:  CloseActiveTab();   e.Handled = true; break;
-            case Key.Tab:
-                SwitchTab(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1);
-                e.Handled = true;
-                break;
+            _currentHost.ResizeHostedWindow(width, height);
         }
     }
 
-    // ===== タブ追加 =====
-    private void AddButton_Click(object sender, RoutedEventArgs e) => OpenWindowPicker();
-
-    private void OpenWindowPicker()
+    private void UpdateManagedWindowLayout(bool activate)
     {
-        var picker = new WindowPickerWindow(_tabs.Select(t => t.Window.Handle));
-        picker.Owner = this;
-        if (picker.ShowDialog() == true && picker.SelectedWindow != null)
-            AddWindow(picker.SelectedWindow);
-    }
+        IntPtr targetHandle = IntPtr.Zero;
+        bool canShowManagedWindow =
+            !_viewModel.IsWindowPickerOpen &&
+            !_viewModel.IsCommandPaletteOpen &&
+            !_viewModel.IsContentTabActive &&
+            !_viewModel.IsWebTabActive &&
+            !_viewModel.IsTileVisible &&
+            WindowState != WindowState.Minimized &&
+            _viewModel.SelectedTab != null &&
+            _viewModel.TryGetExternallyManagedWindowHandle(_viewModel.SelectedTab, out targetHandle);
 
-    private async void OnMainWindowLoaded(object sender, RoutedEventArgs e)
-    {
-        if (_startupAppsLaunched) return;
-        _startupAppsLaunched = true;
-        await LaunchDefaultAppsAsync();
-    }
-
-    private async Task LaunchDefaultAppsAsync()
-    {
-        foreach (var app in DefaultStartupApps)
-            await LaunchAndRegisterAppAsync(app);
-    }
-
-    private async Task LaunchAndRegisterAppAsync(StartupAppDefinition app)
-    {
-        var beforeHandles = GetTrackableTopLevelWindowHandles();
-        var targetProcessName = TryGetProcessName(app.FileName);
-
-        try
+        if (!canShowManagedWindow)
         {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = app.FileName,
-                UseShellExecute = true
-            };
-            if (!string.IsNullOrWhiteSpace(app.Arguments))
-                startInfo.Arguments = app.Arguments;
+            targetHandle = IntPtr.Zero;
+        }
 
-            using var process = Process.Start(startInfo);
-            if (process == null) return;
+        _windowManager.MinimizeAllManagedWindowsExcept(targetHandle);
 
-            var hWnd = await WaitForMainWindowHandleAsync(process, TimeSpan.FromSeconds(10));
-            if (hWnd == IntPtr.Zero)
+        if (targetHandle == IntPtr.Zero)
+        {
+            RemoveManagedWindowSyncHooks();
+            _activeManagedWindowHandle = IntPtr.Zero;
+            return;
+        }
+
+        EnsureManagedWindowSyncHooks(targetHandle);
+
+        bool bringToFront = activate || targetHandle != _activeManagedWindowHandle;
+        var windHwnd = new WindowInteropHelper(this).Handle;
+
+        if (!TryGetManagedWindowBounds(out var bounds))
+        {
+            // Layout is not ready yet. Keep the managed window at its current position
+            // without updating _activeManagedWindowHandle, so the next call (once layout
+            // has settled) still treats this as a first-time activation and can set
+            // bringToFront correctly.
+            if (NativeMethods.GetWindowRect(targetHandle, out var currentRect))
             {
-                hWnd = await WaitForLaunchedWindowHandleAsync(
-                    beforeHandles,
-                    targetProcessName,
-                    TimeSpan.FromSeconds(10));
+                _windowManager.ActivateManagedWindow(
+                    targetHandle,
+                    currentRect.Left,
+                    currentRect.Top,
+                    Math.Max(1, currentRect.Width),
+                    Math.Max(1, currentRect.Height),
+                    bringToFront: false,
+                    windHwnd);
             }
 
-            if (hWnd == IntPtr.Zero) return;
-            if (_tabs.Any(t => t.Window.Handle == hWnd)) return;
-
-            var window = new ManagedWindow { Handle = hWnd };
-            window.RefreshTitle();
-            if (string.IsNullOrWhiteSpace(window.Title))
-                window.Title = app.FileName;
-
-            AddWindow(window);
-        }
-        catch
-        {
-            // 起動失敗は他のデフォルトアプリ起動を継続
-        }
-    }
-
-    private async Task<IntPtr> WaitForLaunchedWindowHandleAsync(
-        HashSet<IntPtr> beforeHandles,
-        string? targetProcessName,
-        TimeSpan timeout)
-    {
-        var started = Stopwatch.StartNew();
-        while (started.Elapsed < timeout)
-        {
-            var currentHandles = GetTrackableTopLevelWindowHandles();
-
-            var candidate = currentHandles
-                .Where(h => !beforeHandles.Contains(h))
-                .FirstOrDefault(h => IsCandidateForProcess(h, targetProcessName));
-            if (candidate != IntPtr.Zero)
-                return candidate;
-
-            await Task.Delay(100);
+            return;
         }
 
-        // 単一インスタンスアプリのため新規ウィンドウが増えない場合は、既存ウィンドウも対象にする
-        var fallback = GetTrackableTopLevelWindowHandles()
-            .FirstOrDefault(h => IsCandidateForProcess(h, targetProcessName));
-        return fallback;
+        _windowManager.ActivateManagedWindow(
+            targetHandle,
+            bounds.Left,
+            bounds.Top,
+            bounds.Width,
+            bounds.Height,
+            bringToFront,
+            windHwnd);
+
+        _activeManagedWindowHandle = targetHandle;
     }
 
-    private HashSet<IntPtr> GetTrackableTopLevelWindowHandles()
+    private bool TryGetManagedWindowBounds(out NativeMethods.RECT bounds)
     {
-        var handles = new HashSet<IntPtr>();
-        var thisHandle = new WindowInteropHelper(this).Handle;
+        bounds = default;
 
-        NativeMethods.EnumWindows((hWnd, _) =>
-        {
-            try
-            {
-                if (hWnd == thisHandle) return true;
-                if (!NativeMethods.IsWindowVisible(hWnd)) return true;
-                if (NativeMethods.GetAncestor(hWnd, NativeMethods.GA_ROOT) != hWnd) return true;
-
-                var titleLen = NativeMethods.GetWindowTextLength(hWnd);
-                if (titleLen == 0) return true;
-
-                var exStyle = NativeMethods.GetWindowLong(hWnd, NativeMethods.GWL_EXSTYLE);
-                if ((exStyle & NativeMethods.WS_EX_TOOLWINDOW) != 0) return true;
-
-                handles.Add(hWnd);
-            }
-            catch
-            {
-                // 個々のウィンドウ取得エラーは無視
-            }
-
-            return true;
-        }, IntPtr.Zero);
-
-        return handles;
-    }
-
-    private bool IsCandidateForProcess(IntPtr hWnd, string? targetProcessName)
-    {
-        if (_tabs.Any(t => t.Window.Handle == hWnd))
+        double widthDip = WindowHostContainer.ActualWidth;
+        double heightDip = WindowHostContainer.ActualHeight;
+        if (widthDip <= 0 || heightDip <= 0)
             return false;
-        if (targetProcessName == null)
-            return true;
 
-        return TryGetWindowProcessName(hWnd, out var processName)
-            && string.Equals(processName, targetProcessName, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool TryGetWindowProcessName(IntPtr hWnd, out string? processName)
-    {
-        processName = null;
-        try
-        {
-            NativeMethods.GetWindowThreadProcessId(hWnd, out var pid);
-            if (pid == 0) return false;
-
-            using var process = Process.GetProcessById((int)pid);
-            processName = process.ProcessName;
-            return !string.IsNullOrWhiteSpace(processName);
-        }
-        catch
-        {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero)
             return false;
-        }
-    }
 
-    private static string? TryGetProcessName(string fileName)
-    {
-        try
+        if (!NativeMethods.GetWindowRect(hwnd, out var windRect))
+            return false;
+
+        var source = PresentationSource.FromVisual(this);
+        double dpiScaleX = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+        double dpiScaleY = source?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+
+        Point contentOffsetDip = WindowHostContainer.TranslatePoint(new Point(0, 0), this);
+        int left = windRect.Left + (int)Math.Round(contentOffsetDip.X * dpiScaleX);
+        int top = windRect.Top + (int)Math.Round(contentOffsetDip.Y * dpiScaleY);
+        int width = Math.Max(1, (int)Math.Round(widthDip * dpiScaleX));
+        int height = Math.Max(1, (int)Math.Round(heightDip * dpiScaleY));
+
+        bounds = new NativeMethods.RECT
         {
-            var name = Path.GetFileNameWithoutExtension(fileName);
-            return string.IsNullOrWhiteSpace(name) ? null : name;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static async Task<IntPtr> WaitForMainWindowHandleAsync(Process process, TimeSpan timeout)
-    {
-        try { process.WaitForInputIdle(2000); } catch { }
-
-        var started = Stopwatch.StartNew();
-        while (started.Elapsed < timeout)
-        {
-            try
-            {
-                process.Refresh();
-                if (process.HasExited) break;
-                if (process.MainWindowHandle != IntPtr.Zero)
-                    return process.MainWindowHandle;
-            }
-            catch
-            {
-                break;
-            }
-
-            await Task.Delay(100);
-        }
-
-        return IntPtr.Zero;
-    }
-
-    private void AddWindow(ManagedWindow window)
-    {
-        NativeMethods.GetWindowRect(window.Handle, out var rect);
-        window.OriginalRect  = rect;
-        window.WasMinimized  = NativeMethods.IsIconic(window.Handle);
-
-        var ctrl = new TabItemControl();
-        ctrl.SetWindow(window);
-        ctrl.HorizontalAlignment = HorizontalAlignment.Stretch;
-        ctrl.TabClicked     += (_, _) => SwitchToTab(_tabs.FindIndex(t => t.Control == ctrl));
-        ctrl.CloseRequested += (_, _) => RemoveTab(_tabs.FindIndex(t => t.Control == ctrl));
-
-        _tabs.Add((window, ctrl));
-        TabsPanel.Children.Add(ctrl);
-
-        EmptyHint.Visibility = Visibility.Collapsed;
-        SwitchToTab(_tabs.Count - 1);
-    }
-
-    // ===== タブ切り替え =====
-    private void SwitchToTab(int index)
-    {
-        if (index < 0 || index >= _tabs.Count) return;
-
-        // 現在アクティブなウィンドウを非表示
-        if (_activeIndex >= 0 && _activeIndex < _tabs.Count && _activeIndex != index)
-        {
-            var (prevWin, prevCtrl) = _tabs[_activeIndex];
-            prevCtrl.IsActive = false;
-            if (prevWin.IsAlive)
-                NativeMethods.ShowWindow(prevWin.Handle, NativeMethods.SW_HIDE);
-        }
-
-        _activeIndex = index;
-        var (win, ctrl2) = _tabs[index];
-        ctrl2.IsActive = true;
-
-        if (win.IsAlive && WindowState != WindowState.Minimized)
-        {
-            PositionManagedWindow(win.Handle);
-            NativeMethods.ShowWindow(win.Handle, NativeMethods.SW_SHOW);
-            NativeMethods.SetForegroundWindow(win.Handle);
-        }
-    }
-
-    private void SwitchTab(int delta)
-    {
-        if (_tabs.Count == 0) return;
-        SwitchToTab((_activeIndex + delta + _tabs.Count) % _tabs.Count);
-    }
-
-    private void CloseActiveTab()
-    {
-        if (_activeIndex >= 0 && _activeIndex < _tabs.Count)
-            RemoveTab(_activeIndex);
-    }
-
-    // ===== 管理ウィンドウの位置調整 =====
-    private void PositionManagedWindow(IntPtr hWnd)
-    {
-        if (NativeMethods.IsIconic(hWnd))
-            NativeMethods.ShowWindow(hWnd, NativeMethods.SW_RESTORE);
-
-        var (x, y, w, h) = GetContentAreaPixels();
-        if (w <= 0 || h <= 0) return;
-
-        NativeMethods.SetWindowPos(
-            hWnd, NativeMethods.HWND_TOP,
-            x, y, w, h,
-            NativeMethods.SWP_NOACTIVATE);
-    }
-
-    private void RepositionActiveWindow(bool forceShow = false)
-    {
-        if (_activeIndex < 0 || _activeIndex >= _tabs.Count) return;
-        if (WindowState == WindowState.Minimized) return;
-
-        var (win, _) = _tabs[_activeIndex];
-        if (!win.IsAlive) return;
-
-        PositionManagedWindow(win.Handle);
-
-        if (forceShow)
-        {
-            NativeMethods.ShowWindow(win.Handle, NativeMethods.SW_SHOW);
-            NativeMethods.SetForegroundWindow(win.Handle);
-        }
-    }
-
-    private void OnDragSyncTick(object? sender, EventArgs e)
-    {
-        if (_isSyncingFromManagedWindowMove) return;
-        if (WindowState != WindowState.Normal) return;
-        if (_activeIndex < 0 || _activeIndex >= _tabs.Count) return;
-
-        var (win, _) = _tabs[_activeIndex];
-        if (!win.IsAlive || NativeMethods.IsIconic(win.Handle)) return;
-
-        var (contentX, contentY, _, _) = GetContentAreaPixels();
-        if (!NativeMethods.GetWindowRect(win.Handle, out var managedRect)) return;
-
-        int dx = managedRect.Left - contentX;
-        int dy = managedRect.Top - contentY;
-        const int threshold = 2;
-        if (Math.Abs(dx) <= threshold && Math.Abs(dy) <= threshold) return;
-
-        var mainHwnd = new WindowInteropHelper(this).Handle;
-        if (mainHwnd == IntPtr.Zero) return;
-        if (!NativeMethods.GetWindowRect(mainHwnd, out var mainRect)) return;
-
-        _isSyncingFromManagedWindowMove = true;
-        try
-        {
-            NativeMethods.SetWindowPos(
-                mainHwnd,
-                IntPtr.Zero,
-                mainRect.Left + dx,
-                mainRect.Top + dy,
-                0,
-                0,
-                NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
-        }
-        finally
-        {
-            _isSyncingFromManagedWindowMove = false;
-        }
-    }
-
-    // ===== コンテンツエリアのサイズ変更 (リサイズ / スプリッター) =====
-    private void ContentArea_SizeChanged(object sender, SizeChangedEventArgs e)
-        => RepositionActiveWindow();
-
-    // ===== ウィンドウ移動 =====
-    private void Window_LocationChanged(object sender, EventArgs e)
-        => RepositionActiveWindow();
-
-    // ===== タブを閉じる =====
-    private void RemoveTab(int index)
-    {
-        if (index < 0 || index >= _tabs.Count) return;
-
-        var (win, ctrl) = _tabs[index];
-
-        // 元の位置に復元
-        if (win.IsAlive)
-        {
-            var orig = win.OriginalRect;
-            NativeMethods.SetWindowPos(win.Handle, NativeMethods.HWND_TOP,
-                orig.Left, orig.Top, orig.Width, orig.Height,
-                NativeMethods.SWP_SHOWWINDOW);
-            if (!win.WasMinimized)
-                NativeMethods.ShowWindow(win.Handle, NativeMethods.SW_SHOWNORMAL);
-        }
-
-        TabsPanel.Children.Remove(ctrl);
-        _tabs.RemoveAt(index);
-
-        if (_activeIndex >= _tabs.Count)
-            _activeIndex = _tabs.Count - 1;
-
-        if (_activeIndex >= 0)
-            SwitchToTab(_activeIndex);
-        else
-        {
-            _activeIndex = -1;
-            EmptyHint.Visibility = Visibility.Visible;
-        }
-    }
-
-    // ===== 全ウィンドウ解放 =====
-    private void ReleaseAllWindows()
-    {
-        for (int i = _tabs.Count - 1; i >= 0; i--)
-            RemoveTab(i);
-    }
-
-    private void ReleaseAllMenuItem_Click(object sender, RoutedEventArgs e)
-        => ReleaseAllWindows();
-
-    // ===== タイマー: 閉じたウィンドウ検出 & タイトル更新 =====
-    private void OnTimerTick(object? sender, EventArgs e)
-    {
-        var deadIndices = _tabs
-            .Select((t, i) => (t, i))
-            .Where(x => !x.t.Window.IsAlive)
-            .Select(x => x.i)
-            .OrderByDescending(i => i)
-            .ToList();
-
-        foreach (var idx in deadIndices)
-        {
-            TabsPanel.Children.Remove(_tabs[idx].Control);
-            _tabs.RemoveAt(idx);
-            if (_activeIndex >= _tabs.Count)
-                _activeIndex = _tabs.Count - 1;
-        }
-
-        if (deadIndices.Count > 0)
-        {
-            if (_activeIndex >= 0) SwitchToTab(_activeIndex);
-            else EmptyHint.Visibility = Visibility.Visible;
-        }
-
-        // タイトル更新
-        foreach (var (win, ctrl) in _tabs)
-        {
-            if (!win.IsAlive) continue;
-            var old = win.Title;
-            win.RefreshTitle();
-            if (win.Title != old) ctrl.UpdateTitle(win.Title);
-        }
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        _dragSyncTimer.Stop();
-        _timer.Stop();
-        ReleaseAllWindows();
-        base.OnClosed(e);
+            Left = left,
+            Top = top,
+            Right = left + width,
+            Bottom = top + height
+        };
+        return true;
     }
 }

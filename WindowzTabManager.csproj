@@ -9,6 +9,17 @@
     <RootNamespace>WindowzTabManager</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0"/>
+    <PackageReference Include="WPF-UI" Version="3.0.4" />
+  </ItemGroup>
+
+  <!-- Keep CodeSample references as source material only; they are not part of Windowz build output. -->
+  <ItemGroup>
+    <Compile Remove="CodeSample\**\*.cs" />
+    <Page Remove="CodeSample\**\*.xaml" />
+    <ApplicationDefinition Remove="CodeSample\**\*.xaml" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,148 @@
+<UserControl x:Class="WindowzTabManager.Views.WindowPicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:converters="clr-namespace:WindowzTabManager.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="500" d:DesignWidth="600">
+
+    <UserControl.Resources>
+        <converters:NotNullConverter x:Key="NotNullConverter"/>
+        <converters:BoolToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource ApplicationBackgroundBrush}"
+            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+            BorderThickness="1" CornerRadius="12">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Quick Launch -->
+            <ScrollViewer Grid.Row="0" MaxHeight="120" Margin="0,0,0,12"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          Visibility="{Binding HasQuickLaunchApps, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <ItemsControl ItemsSource="{Binding QuickLaunchApps}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ui:Button Margin="0,0,8,8" Padding="12,8"
+                                       Appearance="Secondary"
+                                       Command="{Binding DataContext.LaunchQuickAppCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="WindowConsole20" Margin="0,0,6,0"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                </StackPanel>
+                            </ui:Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Search -->
+            <ui:TextBox Grid.Row="1" Margin="0,0,0,12"
+                        PlaceholderText="Search windows..."
+                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                        Icon="{ui:SymbolIcon Search24}"/>
+
+            <!-- Window List -->
+            <Border Grid.Row="2" Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    CornerRadius="8" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <ListView ItemsSource="{Binding WindowsView}"
+                          SelectedItem="{Binding SelectedWindow}"
+                          SelectionMode="Single"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          MouseDoubleClick="ListView_MouseDoubleClick">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="8,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Image Source="{Binding Icon}" Width="32" Height="32"
+                                       Margin="0,0,12,0" VerticalAlignment="Center"/>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" FontSize="14"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding ProcessName}" FontSize="12"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <ui:SymbolIcon Symbol="Shield24" Margin="8,0,0,0" FontSize="12"
+                                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                                       Visibility="{Binding IsElevated, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock Text="管理者" FontSize="11" Margin="2,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                                   Visibility="{Binding IsElevated, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="Padding" Value="4"/>
+                            <Setter Property="Margin" Value="4,2"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                </ListView>
+            </Border>
+
+            <!-- Buttons -->
+            <Grid Grid.Row="3" Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="{Binding AvailableWindows.Count, StringFormat='{}{0} windows available'}"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Launching..."
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Visibility="{Binding IsLaunching, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <TextBlock Text="管理者権限のアプリは追加できません"
+                               Foreground="{DynamicResource AccentFillColorDefaultBrush}" FontSize="12"
+                               Visibility="{Binding IsSelectedWindowElevated, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                </StackPanel>
+
+                <ui:Button Grid.Column="2" Content="QuickLaunch設定"
+                           Command="{Binding OpenQuickLaunchSettingsCommand}"
+                           Appearance="Secondary" Padding="16,8" Margin="0,0,8,0"/>
+                <ui:Button Grid.Column="3" Content="Cancel"
+                           Command="{Binding CancelCommand}"
+                           Appearance="Secondary" Padding="24,8" Margin="0,0,8,0"/>
+                <ui:Button Grid.Column="4" Content="Add Window"
+                           Command="{Binding SelectCommand}"
+                           Appearance="Primary" Padding="24,8"
+                           IsEnabled="{Binding CanAddSelectedWindow}"/>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>
