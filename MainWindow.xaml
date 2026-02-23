@@ -8,7 +8,8 @@
         Width="960" Height="680"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True"
-        Background="#1E1E1E"
+        AllowsTransparency="True"
+        Background="Transparent"
         LocationChanged="Window_LocationChanged">
 
     <Window.Resources>
@@ -199,7 +200,7 @@
 
             <!-- コンテンツエリア (他のアプリをここに配置) -->
             <Border x:Name="ContentAreaBorder" Grid.Column="2"
-                    Background="#0D0D0D"
+                    Background="Transparent"
                     SizeChanged="ContentArea_SizeChanged">
                 <TextBlock x:Name="EmptyHint"
                            Text="「＋」でウィンドウを追加   Ctrl+T"
