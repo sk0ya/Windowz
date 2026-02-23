@@ -1,0 +1,41 @@
+<Application x:Class="WindowzTabManager.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- カラーパレット -->
+            <Color x:Key="SidebarBg">#1E1E1E</Color>
+            <Color x:Key="TabActiveBg">#2D2D2D</Color>
+            <Color x:Key="TabHoverBg">#252526</Color>
+            <Color x:Key="AccentBlue">#007ACC</Color>
+            <Color x:Key="TextPrimary">#CCCCCC</Color>
+            <Color x:Key="TextActive">#FFFFFF</Color>
+            <Color x:Key="Separator">#3C3C3C</Color>
+
+            <SolidColorBrush x:Key="SidebarBgBrush" Color="{StaticResource SidebarBg}"/>
+            <SolidColorBrush x:Key="TabActiveBgBrush" Color="{StaticResource TabActiveBg}"/>
+            <SolidColorBrush x:Key="TabHoverBgBrush" Color="{StaticResource TabHoverBg}"/>
+            <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlue}"/>
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}"/>
+            <SolidColorBrush x:Key="TextActiveBrush" Color="{StaticResource TextActive}"/>
+            <SolidColorBrush x:Key="SeparatorBrush" Color="{StaticResource Separator}"/>
+
+            <!-- スクロールバーを非表示にするスタイル -->
+            <Style x:Key="HiddenScrollBar" TargetType="ScrollBar">
+                <Setter Property="Width" Value="0"/>
+            </Style>
+            <Style x:Key="SidebarScrollViewer" TargetType="ScrollViewer">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollViewer">
+                            <Grid>
+                                <ScrollContentPresenter/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,98 @@
+<Window x:Class="WindowzTabManager.WindowPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ウィンドウを選択" Height="420" Width="480"
+        WindowStartupLocation="CenterOwner"
+        Background="#252526" Foreground="White"
+        ResizeMode="NoResize"
+        WindowStyle="SingleBorderWindow"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="9.5"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#37373D"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#094771"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#3C3C3C"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="9.5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#505050"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 検索ボックス: Grid overlay でプレースホルダーを実装 -->
+        <Grid Grid.Row="0" Height="30">
+            <TextBox x:Name="FilterBox"
+                     Background="#3C3C3C" Foreground="White"
+                     BorderBrush="#555555" BorderThickness="1"
+                     Padding="6,0" FontFamily="Segoe UI" FontSize="10"
+                     CaretBrush="White" VerticalContentAlignment="Center"
+                     TextChanged="FilterBox_TextChanged"/>
+            <!-- プレースホルダーテキスト (入力があれば非表示) -->
+            <TextBlock x:Name="PlaceholderText"
+                       Text="ウィンドウ名でフィルター..."
+                       Foreground="#777777" FontFamily="Segoe UI" FontSize="10"
+                       Margin="8,0,0,0" VerticalAlignment="Center"
+                       IsHitTestVisible="False"/>
+        </Grid>
+
+        <!-- ウィンドウ一覧 -->
+        <Border Grid.Row="2" BorderBrush="#3C3C3C" BorderThickness="1">
+            <ListBox x:Name="WindowList"
+                     Background="#1E1E1E"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     MouseDoubleClick="WindowList_DoubleClick">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Height="28">
+                            <Image Source="{Binding Icon}" Width="16" Height="16"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="{Binding Title}"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI" FontSize="9.5"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <!-- ボタン -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="追加" Width="80" Margin="0,0,8,0" Click="OkButton_Click"/>
+            <Button Content="キャンセル" Width="80" Click="CancelButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

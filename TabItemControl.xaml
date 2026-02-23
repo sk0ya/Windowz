@@ -1,0 +1,69 @@
+<UserControl x:Class="WindowzTabManager.TabItemControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="38" HorizontalAlignment="Stretch" Cursor="Hand"
+             MouseEnter="OnMouseEnter" MouseLeave="OnMouseLeave"
+             MouseLeftButtonUp="OnMouseLeftButtonUp">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
+    <Grid x:Name="RootGrid" Background="{StaticResource SidebarBgBrush}">
+        <!-- アクティブ時の左ボーダー -->
+        <Rectangle x:Name="ActiveBorder"
+                   Width="3" HorizontalAlignment="Left"
+                   Fill="{StaticResource AccentBlueBrush}"
+                   Visibility="Collapsed"/>
+
+        <!-- コンテンツ -->
+        <Grid Margin="12,0,8,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="22"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="20"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- アイコン -->
+            <Image x:Name="AppIcon" Grid.Column="0"
+                   Width="18" Height="18"
+                   VerticalAlignment="Center"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+
+            <!-- タイトル -->
+            <TextBlock x:Name="TitleText" Grid.Column="1"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontFamily="Segoe UI" FontSize="9.5"
+                       Margin="6,0,4,0"
+                       TextTrimming="CharacterEllipsis"
+                       TextWrapping="NoWrap"/>
+
+            <!-- 閉じるボタン -->
+            <Button x:Name="CloseButton" Grid.Column="2"
+                    Width="18" Height="18"
+                    VerticalAlignment="Center"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Visibility="Hidden"
+                    Click="CloseButton_Click"
+                    ToolTip="閉じる">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Grid x:Name="CloseGrid" Background="Transparent" Width="18" Height="18">
+                            <Path Data="M4,4 L14,14 M14,4 L4,14"
+                                  Stroke="#AAAAAA" StrokeThickness="1.5"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CloseGrid" Property="Background" Value="#555555"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </Grid>
+    </Grid>
+</UserControl>
