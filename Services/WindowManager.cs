@@ -240,6 +240,13 @@ public class WindowManager
         if (!NativeMethods.IsWindow(handle))
             return;
 
+        // Managed tabs are often minimized while inactive. Restore once first so
+        // position/state restoration works reliably for shell windows (e.g. Explorer).
+        if (NativeMethods.IsIconic(handle) || NativeMethods.IsZoomed(handle))
+        {
+            NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE);
+        }
+
         if (state.OriginalRect.Width > 0 && state.OriginalRect.Height > 0)
         {
             bool restored = NativeMethods.SetWindowPos(
@@ -249,7 +256,7 @@ public class WindowManager
                 state.OriginalRect.Top,
                 state.OriginalRect.Width,
                 state.OriginalRect.Height,
-                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED);
 
             if (!restored)
             {
@@ -268,9 +275,23 @@ public class WindowManager
         else if (state.WasMaximized)
             NativeMethods.ShowWindow(handle, NativeMethods.SW_MAXIMIZE);
         else if (state.WasVisible)
-            NativeMethods.ShowWindow(handle, NativeMethods.SW_SHOW);
+            NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE);
         else
             NativeMethods.ShowWindow(handle, NativeMethods.SW_HIDE);
+
+        if (state.WasVisible)
+        {
+            NativeMethods.RedrawWindow(
+                handle,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                NativeMethods.RDW_INVALIDATE |
+                NativeMethods.RDW_ERASE |
+                NativeMethods.RDW_FRAME |
+                NativeMethods.RDW_ALLCHILDREN |
+                NativeMethods.RDW_UPDATENOW);
+            NativeMethods.UpdateWindow(handle);
+        }
     }
 
     public void ForgetManagedWindow(IntPtr handle)
