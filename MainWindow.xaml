@@ -521,7 +521,7 @@
                     Background="{DynamicResource ControlStrokeColorDefaultBrush}"/>
 
             <!-- Content Area -->
-            <Grid x:Name="ContentPanel" Background="{DynamicResource ApplicationBackgroundBrush}"
+            <Grid x:Name="ContentPanel" Background="Transparent"
                   UseLayoutRounding="True" SnapsToDevicePixels="True">
                 <!-- Empty State -->
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -535,7 +535,7 @@
 
                 <!-- Single Window Host Container -->
                 <Border x:Name="WindowHostContainer" ClipToBounds="True" Padding="0" Margin="0"
-                        Background="{DynamicResource ApplicationBackgroundBrush}"
+                        Background="Transparent"
                         UseLayoutRounding="True" SnapsToDevicePixels="True"
                         Visibility="{Binding SelectedTab, Converter={StaticResource NullToVisibility}}"/>
 
