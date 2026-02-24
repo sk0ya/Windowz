@@ -190,14 +190,12 @@ public partial class MainWindow
                 return;
 
             case EVENT_SYSTEM_MINIMIZESTART_M:
-                if (_isSyncingManagedWindowFromWind ||
-                    Environment.TickCount64 <= _ignoreManagedWindowEventsUntilTick)
+                if (_isSyncingManagedWindowFromWind)
                 {
                     return;
                 }
 
-                // Keep managed app alive and map minimize intent to Windowz minimize.
-                RestoreManagedWindowSilently(hwnd);
+                // Mirror managed app minimize intent onto Windowz minimize.
                 if (WindowState != WindowState.Minimized)
                 {
                     _isSyncingWindFromManagedWindow = true;

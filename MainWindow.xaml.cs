@@ -390,7 +390,15 @@ public partial class MainWindow : Window
             targetHandle = IntPtr.Zero;
         }
 
-        _windowManager.MinimizeAllManagedWindowsExcept(targetHandle);
+        _isSyncingManagedWindowFromWind = true;
+        try
+        {
+            _windowManager.MinimizeAllManagedWindowsExcept(targetHandle);
+        }
+        finally
+        {
+            _isSyncingManagedWindowFromWind = false;
+        }
 
         if (targetHandle == IntPtr.Zero)
         {
