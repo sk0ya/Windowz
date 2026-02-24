@@ -14,7 +14,7 @@
         
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        ResizeMode="NoResize"
+        ResizeMode="CanResize"
         Background="{DynamicResource ApplicationBackgroundBrush}"
         AllowsTransparency="False"
         UseLayoutRounding="True"

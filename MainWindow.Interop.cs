@@ -32,13 +32,70 @@ public partial class MainWindow
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        const int WM_NCHITTEST = 0x0084;
         const int WM_GETMINMAXINFO = 0x0024;
+        const int HTCLIENT = 1;
+
+        if (msg == WM_NCHITTEST)
+        {
+            handled = true;
+            var hit = HitTestResizeBorder(hwnd, lParam);
+            return hit != IntPtr.Zero ? hit : (IntPtr)HTCLIENT;
+        }
 
         if (msg == WM_GETMINMAXINFO)
         {
             WmGetMinMaxInfo(hwnd, lParam);
             handled = true;
         }
+
+        return IntPtr.Zero;
+    }
+
+    private IntPtr HitTestResizeBorder(IntPtr hwnd, IntPtr lParam)
+    {
+        const int SideResizeBorderThicknessPx = 8;
+        const int TopResizeBorderThicknessPx = 8;
+        const int BottomResizeBorderThicknessPx = 8;
+        const int HTLEFT = 10;
+        const int HTRIGHT = 11;
+        const int HTTOP = 12;
+        const int HTTOPLEFT = 13;
+        const int HTTOPRIGHT = 14;
+        const int HTBOTTOM = 15;
+        const int HTBOTTOMLEFT = 16;
+        const int HTBOTTOMRIGHT = 17;
+
+        if (WindowState == WindowState.Maximized)
+            return IntPtr.Zero;
+
+        if (!NativeMethods.GetWindowRect(hwnd, out var windowRect))
+            return IntPtr.Zero;
+
+        long lParamValue = lParam.ToInt64();
+        int mouseX = unchecked((short)(lParamValue & 0xFFFF));
+        int mouseY = unchecked((short)((lParamValue >> 16) & 0xFFFF));
+
+        if (mouseX < windowRect.Left || mouseX > windowRect.Right ||
+            mouseY < windowRect.Top || mouseY > windowRect.Bottom)
+        {
+            return IntPtr.Zero;
+        }
+
+        bool onLeft = mouseX - windowRect.Left <= SideResizeBorderThicknessPx;
+        bool onRight = windowRect.Right - mouseX <= SideResizeBorderThicknessPx;
+        bool onTop = TopResizeBorderThicknessPx > 0 &&
+                     mouseY - windowRect.Top <= TopResizeBorderThicknessPx;
+        bool onBottom = windowRect.Bottom - mouseY <= BottomResizeBorderThicknessPx;
+
+        if (onTop && onLeft) return (IntPtr)HTTOPLEFT;
+        if (onTop && onRight) return (IntPtr)HTTOPRIGHT;
+        if (onBottom && onLeft) return (IntPtr)HTBOTTOMLEFT;
+        if (onBottom && onRight) return (IntPtr)HTBOTTOMRIGHT;
+        if (onLeft) return (IntPtr)HTLEFT;
+        if (onRight) return (IntPtr)HTRIGHT;
+        if (onTop) return (IntPtr)HTTOP;
+        if (onBottom) return (IntPtr)HTBOTTOM;
 
         return IntPtr.Zero;
     }
