@@ -21,22 +21,29 @@ public partial class MainViewModel
     [RelayCommand]
     private void OpenSettings()
     {
-        OpenContentTab("GeneralSettings");
+        OpenContentTab("SettingsHub");
     }
 
     [RelayCommand]
     private void OpenContentTab(string contentKey)
     {
-        var title = contentKey switch
+        var normalizedKey = contentKey switch
         {
-            "GeneralSettings" => "設定",
-            "HotkeySettings" => "HotKey設定",
-            "StartupSettings" => "Startup設定",
-            "QuickLaunchSettings" => "QuickLaunch設定",
-            "ProcessInfo" => "プロセス情報",
+            "GeneralSettings" => "SettingsHub",
+            "HotkeySettings" => "SettingsHub",
+            "StartupSettings" => "SettingsHub",
+            "QuickLaunchSettings" => "SettingsHub",
+            "ProcessInfo" => "SettingsHub",
             _ => contentKey
         };
-        _tabManager.AddContentTab(title, contentKey);
+
+        var title = normalizedKey switch
+        {
+            "SettingsHub" => "設定",
+            _ => normalizedKey
+        };
+
+        _tabManager.AddContentTab(title, normalizedKey);
     }
 
     [RelayCommand]

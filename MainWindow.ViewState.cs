@@ -152,52 +152,34 @@ public partial class MainWindow
     {
         UserControl? page = contentKey switch
         {
-            "GeneralSettings" => _generalSettingsPage ??= App.GetService<GeneralSettingsPage>(),
-            "HotkeySettings" => _hotkeySettingsPage ??= App.GetService<HotkeySettingsPage>(),
-            "StartupSettings" => GetStartupSettingsPage(),
-            "QuickLaunchSettings" => GetQuickLaunchSettingsPage(),
-            "ProcessInfo" => GetProcessInfoPage(),
+            "SettingsHub" => GetSettingsTabsPage(),
+            "GeneralSettings" => GetSettingsTabsPage(),
+            "HotkeySettings" => GetSettingsTabsPage(),
+            "StartupSettings" => GetSettingsTabsPage(),
+            "QuickLaunchSettings" => GetSettingsTabsPage(),
+            "ProcessInfo" => GetSettingsTabsPage(),
             _ => null
         };
 
         if (page != null)
         {
+            if (page is SettingsTabsPage settingsTabsPage)
+            {
+                var targetKey = contentKey == "SettingsHub"
+                    ? _pendingSettingsContentKey
+                    : contentKey;
+                settingsTabsPage.SelectTab(targetKey);
+            }
+
             ContentTabContent.Content = page;
             ContentTabContainer.Visibility = Visibility.Visible;
         }
     }
 
-    private StartupSettingsPage GetStartupSettingsPage()
+    private SettingsTabsPage GetSettingsTabsPage()
     {
-        if (_startupSettingsPage == null)
-        {
-            _startupSettingsPage = App.GetService<StartupSettingsPage>();
-        }
-        else
-        {
-            ((StartupSettingsViewModel)_startupSettingsPage.DataContext).Reload();
-        }
-        return _startupSettingsPage;
-    }
-
-    private QuickLaunchSettingsPage GetQuickLaunchSettingsPage()
-    {
-        if (_quickLaunchSettingsPage == null)
-        {
-            _quickLaunchSettingsPage = App.GetService<QuickLaunchSettingsPage>();
-        }
-        else
-        {
-            ((QuickLaunchSettingsViewModel)_quickLaunchSettingsPage.DataContext).Reload();
-        }
-        return _quickLaunchSettingsPage;
-    }
-
-    private ProcessInfoPage GetProcessInfoPage()
-    {
-        _processInfoPage ??= App.GetService<ProcessInfoPage>();
-        ((ProcessInfoViewModel)_processInfoPage.DataContext).Refresh();
-        return _processInfoPage;
+        _settingsTabsPage ??= App.GetService<SettingsTabsPage>();
+        return _settingsTabsPage;
     }
 
     #endregion

@@ -18,27 +18,32 @@ public partial class MainWindow
 
     private void OpenGeneralSettings_Click(object sender, RoutedEventArgs e)
     {
-        _viewModel.OpenContentTabCommand.Execute("GeneralSettings");
+        OpenSettingsTab("GeneralSettings");
     }
 
     private void OpenHotkeySettings_Click(object sender, RoutedEventArgs e)
     {
-        _viewModel.OpenContentTabCommand.Execute("HotkeySettings");
+        OpenSettingsTab("HotkeySettings");
     }
 
     private void OpenProcessInfo_Click(object sender, RoutedEventArgs e)
     {
-        _viewModel.OpenContentTabCommand.Execute("ProcessInfo");
+        OpenSettingsTab("ProcessInfo");
     }
 
     private void OpenStartupSettings_Click(object sender, RoutedEventArgs e)
     {
-        _viewModel.OpenContentTabCommand.Execute("StartupSettings");
+        OpenSettingsTab("StartupSettings");
     }
 
     private void OpenQuickLaunchSettings_Click(object sender, RoutedEventArgs e)
     {
-        _viewModel.OpenContentTabCommand.Execute("QuickLaunchSettings");
+        OpenSettingsTab("QuickLaunchSettings");
+    }
+
+    private void OpenSettingsTab_Click(object sender, RoutedEventArgs e)
+    {
+        OpenSettingsTab("GeneralSettings");
     }
 
     private void OpenWebTab_Click(object sender, RoutedEventArgs e)

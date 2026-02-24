@@ -21,11 +21,8 @@ public partial class MainWindow : Window
     private IntPtr _activeManagedWindowHandle;
     private Point? _dragStartPoint;
     private bool _isDragging;
-    private GeneralSettingsPage? _generalSettingsPage;
-    private HotkeySettingsPage? _hotkeySettingsPage;
-    private StartupSettingsPage? _startupSettingsPage;
-    private QuickLaunchSettingsPage? _quickLaunchSettingsPage;
-    private ProcessInfoPage? _processInfoPage;
+    private SettingsTabsPage? _settingsTabsPage;
+    private string _pendingSettingsContentKey = "GeneralSettings";
     private string _currentTabPosition = "Top";
     private bool _isTabBarCollapsed;
     private bool _wasMinimized;
@@ -76,7 +73,7 @@ public partial class MainWindow : Window
         {
             _viewModel.CloseWindowPickerCommand.Execute(null);
             RestoreEmbeddedWindow();
-            _viewModel.OpenContentTabCommand.Execute("QuickLaunchSettings");
+            OpenSettingsTab("QuickLaunchSettings");
         };
         pickerVm.WebTabRequested += (s, url) =>
         {

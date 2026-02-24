@@ -109,7 +109,7 @@ public partial class MainWindow
         switch (command)
         {
             case "GeneralSettings":
-                _viewModel.OpenContentTabCommand.Execute("GeneralSettings");
+                OpenSettingsTab("GeneralSettings");
                 break;
             case "WindowClose":
                 Close();

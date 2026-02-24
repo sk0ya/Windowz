@@ -39,7 +39,22 @@ public partial class App : Application
         services.AddSingleton<HotkeySettingsViewModel>();
         services.AddSingleton<StartupSettingsViewModel>();
         services.AddSingleton<QuickLaunchSettingsViewModel>();
-        services.AddSingleton<ProcessInfoViewModel>();
+        services.AddSingleton<ProcessInfoViewModel>(sp =>
+        {
+            var tabManager = sp.GetRequiredService<TabManager>();
+            return new ProcessInfoViewModel(() =>
+                tabManager.Tabs
+                    .Where(t => !t.IsContentTab && !t.IsWebTab && t.Window != null)
+                    .Select(t => new ManagedWindow
+                    {
+                        Handle = t.Window!.Handle,
+                        Title = t.Window!.Title,
+                        ProcessId = t.Window!.ProcessId,
+                        ProcessName = t.Window!.ProcessName,
+                        ExecutablePath = t.Window!.ExecutablePath
+                    })
+                    .ToList());
+        });
         services.AddSingleton<CommandPaletteViewModel>();
 
         // Views
@@ -49,6 +64,7 @@ public partial class App : Application
         services.AddSingleton<Views.Settings.StartupSettingsPage>();
         services.AddSingleton<Views.Settings.QuickLaunchSettingsPage>();
         services.AddSingleton<Views.Settings.ProcessInfoPage>();
+        services.AddSingleton<Views.Settings.SettingsTabsPage>();
     }
 
     public static bool IsRunningAsAdmin()

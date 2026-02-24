@@ -469,30 +469,9 @@
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator/>
-                                <MenuItem Header="設定" Click="OpenGeneralSettings_Click">
+                                <MenuItem Header="設定" Click="OpenSettingsTab_Click">
                                     <MenuItem.Icon>
                                         <ui:SymbolIcon Symbol="Settings24" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="HotKey設定" Click="OpenHotkeySettings_Click">
-                                    <MenuItem.Icon>
-                                        <ui:SymbolIcon Symbol="Keyboard24" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="プロセス情報" Click="OpenProcessInfo_Click">
-                                    <MenuItem.Icon>
-                                        <ui:SymbolIcon Symbol="Info24" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <Separator/>
-                                <MenuItem Header="Startup設定" Click="OpenStartupSettings_Click">
-                                    <MenuItem.Icon>
-                                        <ui:SymbolIcon Symbol="Play24" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="QuickLaunch設定" Click="OpenQuickLaunchSettings_Click">
-                                    <MenuItem.Icon>
-                                        <ui:SymbolIcon Symbol="Flash24" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator/>
@@ -575,6 +554,7 @@
                                           Margin="0,80,0,0" />
                 </Grid>
             </Grid>
+
         </Grid>
     </Border>
 </Window>
