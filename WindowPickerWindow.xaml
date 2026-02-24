@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:WindowzTabManager.Views"
         Title="ウィンドウを選択"
+        Icon="pack://application:,,,/Windowz.ico"
         Height="540"
         Width="680"
         MinWidth="600"

@@ -7,7 +7,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>WindowzTabManager</AssemblyName>
     <RootNamespace>WindowzTabManager</RootNamespace>
+    <ApplicationIcon>Windowz.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Windowz.ico" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
