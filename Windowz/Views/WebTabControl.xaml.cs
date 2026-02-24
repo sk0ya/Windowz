@@ -25,6 +25,14 @@ public partial class WebTabControl : UserControl, IDisposable
         InitializeComponent();
         TabId = tabId;
         _envService = envService;
+
+        // タブが表示されたときに WebView にフォーカスを移す
+        IsVisibleChanged += (s, e) =>
+        {
+            if ((bool)e.NewValue && _isInitialized)
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+                    () => WebView.Focus());
+        };
     }
 
     public async Task InitializeAsync(string url)
@@ -105,6 +113,10 @@ public partial class WebTabControl : UserControl, IDisposable
         _isInitialized = true;
         UrlTextBox.Text = url;
         WebView.CoreWebView2.Navigate(url);
+
+        // 初期化完了後、WebView にフォーカスを移す
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+            () => WebView.Focus());
     }
 
     public void Navigate(string urlOrSearch)
@@ -158,6 +170,10 @@ public partial class WebTabControl : UserControl, IDisposable
                 Navigate(text);
             }
             e.Handled = true;
+
+            // ナビゲーション後、WebView にフォーカスを戻す
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+                () => WebView.Focus());
         }
     }
 
