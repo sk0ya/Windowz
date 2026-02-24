@@ -28,6 +28,7 @@ internal static class NativeMethods
     public static readonly IntPtr HWND_TOP = IntPtr.Zero;
 
     public const uint SWP_NOZORDER = 0x0004;
+    public const uint SWP_NOREDRAW = 0x0008;
     public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_FRAMECHANGED = 0x0020;
     public const uint SWP_SHOWWINDOW = 0x0040;
@@ -262,6 +263,14 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
+
+    // --- DWM border color ---
+
+    public const int DWMWA_BORDER_COLOR = 34;
+    public const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref uint pvAttribute, int cbAttribute);
 
     // --- Process elevation check ---
 

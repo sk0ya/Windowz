@@ -33,8 +33,18 @@ public partial class MainWindow
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         const int WM_NCHITTEST = 0x0084;
+        const int WM_NCPAINT   = 0x0085;
         const int WM_GETMINMAXINFO = 0x0024;
         const int HTCLIENT = 1;
+
+        // Suppress non-client area painting. Without this, events such as
+        // positioning a managed (embedded) window cause Windows to repaint
+        // the NC area with a white background.
+        if (msg == WM_NCPAINT)
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
 
         if (msg == WM_NCHITTEST)
         {

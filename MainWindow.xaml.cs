@@ -47,6 +47,7 @@ public partial class MainWindow : Window
         DataContext = _viewModel;
         WindowPickerControl.DataContext = App.GetService<WindowPickerViewModel>();
 
+        SourceInitialized += MainWindow_SourceInitialized;
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
         SizeChanged += MainWindow_SizeChanged;
@@ -100,14 +101,30 @@ public partial class MainWindow : Window
         ApplyTabHeaderPosition(_settingsManager.Settings.TabHeaderPosition);
     }
 
+    private void MainWindow_SourceInitialized(object? sender, EventArgs e)
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+
+        // Add WndProc hook before the window is shown so WM_NCCALCSIZE is
+        // intercepted from the very first frame draw.
+        var source = HwndSource.FromHwnd(hwnd);
+        source?.AddHook(WndProc);
+
+        // Remove the OS accent-color border drawn by DWM on Windows 11.
+        uint noBorder = NativeMethods.DWMWA_COLOR_NONE;
+        NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_BORDER_COLOR, ref noBorder, sizeof(uint));
+
+        // Force a frame recalculation so the WM_NCCALCSIZE = 0 result is applied
+        // before the window becomes visible.
+        NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+            NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE |
+            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE |
+            NativeMethods.SWP_FRAMECHANGED);
+    }
+
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         _hotkeyManager.Initialize(this, _settingsManager);
-
-        // Hook into Windows messages for proper maximize handling
-        var hwnd = new WindowInteropHelper(this).Handle;
-        var source = HwndSource.FromHwnd(hwnd);
-        source?.AddHook(WndProc);
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)

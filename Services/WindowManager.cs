@@ -193,6 +193,9 @@ public class WindowManager
         {
             // Keep Wind directly behind the selected managed window so the managed app
             // stays visible above Wind's content area.
+            // SWP_NOREDRAW suppresses the Win32 repaint sequence (NCPAINT/ERASEBKGND/PAINT)
+            // that would briefly show a white border on Wind before WPF can repaint.
+            // DWM compositing updates independently so the visual result is unaffected.
             NativeMethods.SetWindowPos(
                 windWindowHandle,
                 handle,
@@ -200,7 +203,8 @@ public class WindowManager
                 0,
                 0,
                 0,
-                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE |
+                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOREDRAW);
         }
 
         if (bringToFront)
