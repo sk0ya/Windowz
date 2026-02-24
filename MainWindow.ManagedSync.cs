@@ -265,20 +265,19 @@ public partial class MainWindow
     private void HandleManagedWindowMaximize(IntPtr hwnd)
     {
         // External managed windows must not remain maximized.
-        // Immediately cancel their maximize, then mirror maximize onto Windowz.
+        // Immediately cancel their maximize, then toggle Windowz maximize state.
         RestoreManagedWindowSilently(hwnd, ManagedWindowEventIgnoreDurationMs * 3);
 
-        if (WindowState != WindowState.Maximized)
+        _isSyncingWindFromManagedWindow = true;
+        try
         {
-            _isSyncingWindFromManagedWindow = true;
-            try
-            {
-                WindowState = WindowState.Maximized;
-            }
-            finally
-            {
-                _isSyncingWindFromManagedWindow = false;
-            }
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal
+                : WindowState.Maximized;
+        }
+        finally
+        {
+            _isSyncingWindFromManagedWindow = false;
         }
 
         // Re-apply once after maximize layout settles and once at idle to beat late Z-order updates.
