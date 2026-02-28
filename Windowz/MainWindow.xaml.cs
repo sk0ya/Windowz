@@ -335,7 +335,10 @@ public partial class MainWindow : Window
 
     private void MainWindow_LocationChanged(object? sender, EventArgs e)
     {
-        UpdateManagedWindowLayout(activate: false);
+        // Web タブは WPF コントロールのため、ウィンドウ移動時は自動追従する。
+        // positionOnlyUpdate=true で Web タブのレイアウト再計算をスキップし、
+        // WebView2 の不要な再描画（チカチカ）を防ぐ。
+        UpdateManagedWindowLayout(activate: false, positionOnlyUpdate: true);
     }
 
     private void WindowHostContainer_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -386,7 +389,7 @@ public partial class MainWindow : Window
         Close();
     }
 
-    private void UpdateManagedWindowLayout(bool activate)
+    private void UpdateManagedWindowLayout(bool activate, bool positionOnlyUpdate = false)
     {
         if (_isSyncingWindFromManagedWindow)
             return;
@@ -403,7 +406,7 @@ public partial class MainWindow : Window
 
         if (canShowTile)
         {
-            UpdateTileLayout(activeTile!, activate);
+            UpdateTileLayout(activeTile!, activate, positionOnlyUpdate);
             return;
         }
 
@@ -495,7 +498,7 @@ public partial class MainWindow : Window
         _activeManagedWindowHandle = targetHandle;
     }
 
-    private void UpdateTileLayout(Models.TileLayout tile, bool activate)
+    private void UpdateTileLayout(Models.TileLayout tile, bool activate, bool positionOnlyUpdate = false)
     {
         var fractions = tile.GetLayoutFractions();
 
@@ -545,33 +548,39 @@ public partial class MainWindow : Window
         // ---- Web タブの配置 ----
         if (webMembers.Count > 0)
         {
-            // まず全 Web コントロールをリセット
-            foreach (var ctrl in _webTabControls.Values)
+            // positionOnlyUpdate（LocationChanged 起因）の場合、Web タブは WPF コントロールとして
+            // ウィンドウと共に自動移動するため、サイズ・マージン等の再計算をスキップする。
+            // これにより移動ドラッグ中の WebView2 再描画（チカチカ）を防ぐ。
+            if (!positionOnlyUpdate)
             {
-                ctrl.Visibility = System.Windows.Visibility.Collapsed;
-                ctrl.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
-                ctrl.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
-                ctrl.Width = double.NaN;
-                ctrl.Height = double.NaN;
-                ctrl.Margin = new System.Windows.Thickness(0);
-            }
-
-            foreach (var (tab, idx) in webMembers)
-            {
-                if (!_webTabControls.TryGetValue(tab.Id, out var control))
+                // まず全 Web コントロールをリセット
+                foreach (var ctrl in _webTabControls.Values)
                 {
-                    // コントロール未作成の場合は非同期で初期化してレイアウトを再適用
-                    _ = InitWebTabForTileAsync(tab);
-                    continue;
+                    ctrl.Visibility = System.Windows.Visibility.Collapsed;
+                    ctrl.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+                    ctrl.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
+                    ctrl.Width = double.NaN;
+                    ctrl.Height = double.NaN;
+                    ctrl.Margin = new System.Windows.Thickness(0);
                 }
 
-                var f = fractions[idx];
-                control.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
-                control.VerticalAlignment = System.Windows.VerticalAlignment.Top;
-                control.Width = Math.Max(1, f.Width * containerW);
-                control.Height = Math.Max(1, f.Height * containerH);
-                control.Margin = new System.Windows.Thickness(f.Left * containerW, f.Top * containerH, 0, 0);
-                control.Visibility = System.Windows.Visibility.Visible;
+                foreach (var (tab, idx) in webMembers)
+                {
+                    if (!_webTabControls.TryGetValue(tab.Id, out var control))
+                    {
+                        // コントロール未作成の場合は非同期で初期化してレイアウトを再適用
+                        _ = InitWebTabForTileAsync(tab);
+                        continue;
+                    }
+
+                    var f = fractions[idx];
+                    control.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+                    control.VerticalAlignment = System.Windows.VerticalAlignment.Top;
+                    control.Width = Math.Max(1, f.Width * containerW);
+                    control.Height = Math.Max(1, f.Height * containerH);
+                    control.Margin = new System.Windows.Thickness(f.Left * containerW, f.Top * containerH, 0, 0);
+                    control.Visibility = System.Windows.Visibility.Visible;
+                }
             }
 
             WebTabContainer.Visibility = System.Windows.Visibility.Visible;
