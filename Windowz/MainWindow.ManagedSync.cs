@@ -239,15 +239,48 @@ public partial class MainWindow
 
         if (WindowState == WindowState.Minimized ||
             _viewModel.IsWindowPickerOpen ||
-            _viewModel.IsCommandPaletteOpen ||
-            _viewModel.IsContentTabActive ||
-            _viewModel.IsWebTabActive)
+            _viewModel.IsCommandPaletteOpen)
         {
             return;
         }
 
         var windowzHwnd = new WindowInteropHelper(this).Handle;
         if (windowzHwnd == IntPtr.Zero || windowzHwnd == hwnd || !NativeMethods.IsWindow(windowzHwnd))
+            return;
+
+        // タイル表示中は全タイルウィンドウの後ろに Windowz を配置する
+        // （IsContentTabActive / IsWebTabActive のガードより前に処理する）
+        var tile = _viewModel.SelectedTab?.TileLayout;
+        if (tile != null)
+        {
+            var tileHandles = tile.Tabs
+                .Select(t => { _tabManager.TryGetExternallyManagedWindowHandle(t, out var h); return h; })
+                .Where(h => h != IntPtr.Zero && h != windowzHwnd && NativeMethods.IsWindow(h))
+                .ToList();
+
+            if (tileHandles.Count > 0)
+            {
+                // 全タイルウィンドウを順に HWND_TOP へ押し上げて Z 順を確定させる
+                foreach (var h in tileHandles)
+                {
+                    NativeMethods.SetWindowPos(
+                        h, NativeMethods.HWND_TOP, 0, 0, 0, 0,
+                        NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE |
+                        NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOREDRAW);
+                }
+                // tileHandles[0] が Z 順で最下位になるため、その下に Windowz を配置する
+                NativeMethods.SetWindowPos(
+                    windowzHwnd,
+                    tileHandles[0],
+                    0, 0, 0, 0,
+                    NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+                UpdateBackdropPosition();
+                return;
+            }
+        }
+
+        // 非タイル: コンテンツ・Web タブが前面にある場合はスキップ
+        if (_viewModel.IsContentTabActive || _viewModel.IsWebTabActive)
             return;
 
         NativeMethods.SetWindowPos(
@@ -317,6 +350,10 @@ public partial class MainWindow
         {
             return;
         }
+
+        // タイル表示中は Windowz のサイズ同期をスキップ
+        if (_viewModel.SelectedTab?.TileLayout != null)
+            return;
 
         if (!NativeMethods.IsWindow(_managedSyncWindowHandle))
         {

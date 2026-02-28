@@ -123,8 +123,20 @@ public partial class MainWindow
         string? exePath = tab.Window?.ExecutablePath;
         string? path = tab.IsWebTab ? tab.WebUrl : exePath;
 
-        foreach (var item in menu.Items.OfType<MenuItem>())
+        bool canTile = isWindowTab || tab.IsWebTab || tab.IsContentTab;
+        bool canUntile = tab.TileLayout != null;
+        bool showTileSeparator = canTile || canUntile;
+
+        foreach (var rawItem in menu.Items)
         {
+            if (rawItem is Separator sep && sep.Tag?.ToString() == "TileSeparator")
+            {
+                sep.Visibility = showTileSeparator ? Visibility.Visible : Visibility.Collapsed;
+                continue;
+            }
+
+            if (rawItem is not MenuItem item) continue;
+
             var header = item.Header?.ToString() ?? "";
 
             if (header.StartsWith("Startup"))
@@ -170,6 +182,14 @@ public partial class MainWindow
                 {
                     item.Visibility = Visibility.Collapsed;
                 }
+            }
+            else if (header == "タイル表示")
+            {
+                item.Visibility = canTile ? Visibility.Visible : Visibility.Collapsed;
+            }
+            else if (header == "タイル表示を解除")
+            {
+                item.Visibility = canUntile ? Visibility.Visible : Visibility.Collapsed;
             }
         }
     }
@@ -252,6 +272,69 @@ public partial class MainWindow
             _settingsManager.AddAutoEmbedExclusion(exePath);
             _viewModel.StatusMessage = $"自動埋め込みから除外: {tab.DisplayTitle}";
         }
+    }
+
+    private void TileSelectedTabs_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement el || el.Tag is not Models.TabItem contextTab) return;
+
+        // 右クリックしたタブを必ずタイル候補に含める
+        if (!contextTab.IsMultiSelected)
+            contextTab.IsMultiSelected = true;
+
+        // 現在の多重選択ウィンドウタブを取得
+        var candidates = _tabManager.GetMultiSelectedTabs()
+            .Where(t => t.IsContentTab || t.IsWebTab || t.Window != null)
+            .ToList();
+
+        // 2 タブ未満なら隣接タブを自動追加して 2 つにする
+        if (candidates.Count < 2)
+        {
+            var allWindowTabs = _tabManager.Tabs
+                .Where(t => t.IsContentTab || t.IsWebTab || t.Window != null)
+                .ToList();
+
+            int idx = allWindowTabs.IndexOf(contextTab);
+            // 後方のタブを優先して追加
+            for (int i = idx + 1; i < allWindowTabs.Count && candidates.Count < 2; i++)
+            {
+                if (!allWindowTabs[i].IsMultiSelected)
+                {
+                    allWindowTabs[i].IsMultiSelected = true;
+                    candidates.Add(allWindowTabs[i]);
+                }
+            }
+            // それでも足りなければ前方のタブを追加
+            for (int i = idx - 1; i >= 0 && candidates.Count < 2; i--)
+            {
+                if (!allWindowTabs[i].IsMultiSelected)
+                {
+                    allWindowTabs[i].IsMultiSelected = true;
+                    candidates.Add(allWindowTabs[i]);
+                }
+            }
+        }
+
+        var tile = _tabManager.TileSelectedTabs();
+        if (tile == null)
+        {
+            _tabManager.ClearMultiSelection();
+            _viewModel.StatusMessage = "タイル表示できませんでした";
+            return;
+        }
+
+        UpdateManagedWindowLayout(activate: true);
+        _viewModel.StatusMessage = $"タイル表示: {tile.Tabs.Count} タブ";
+    }
+
+    private void ReleaseTile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement el || el.Tag is not Models.TabItem tab) return;
+        if (tab.TileLayout == null) return;
+
+        _tabManager.ReleaseTile(tab.TileLayout);
+        UpdateManagedWindowLayout(activate: true);
+        _viewModel.StatusMessage = "タイル表示を解除しました";
     }
 
     private void RenameTab_Click(object sender, RoutedEventArgs e)

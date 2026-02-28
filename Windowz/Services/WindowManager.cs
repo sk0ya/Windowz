@@ -234,6 +234,16 @@ public class WindowManager
         }
     }
 
+    /// <summary>指定ハンドルセット以外の管理ウィンドウをすべて最小化する（タイル表示用）</summary>
+    public void MinimizeAllManagedWindowsExcept(IReadOnlySet<IntPtr> handlesToKeep)
+    {
+        foreach (var handle in _managedWindowStates.Keys.ToList())
+        {
+            if (handlesToKeep.Contains(handle)) continue;
+            MinimizeManagedWindow(handle);
+        }
+    }
+
     public void ReleaseManagedWindow(IntPtr handle)
     {
         if (!_managedWindowStates.TryGetValue(handle, out var state))

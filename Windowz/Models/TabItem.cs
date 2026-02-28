@@ -26,6 +26,17 @@ public partial class TabItem : ObservableObject
     private TabGroup? _group;
 
     [ObservableProperty]
+    private TileLayout? _tileLayout;
+
+    /// <summary>このタブがタイル表示グループに属しているか</summary>
+    public bool IsTiled => TileLayout != null;
+
+    partial void OnTileLayoutChanged(TileLayout? value)
+    {
+        OnPropertyChanged(nameof(IsTiled));
+    }
+
+    [ObservableProperty]
     private bool _isLaunchedAtStartup;
 
     [ObservableProperty]

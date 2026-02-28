@@ -17,6 +17,10 @@ public partial class MainWindow
             // Content tab switched (e.g. Settings → Startup Settings)
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
+                // タイル表示中は通常の表示切り替えをスキップ
+                if (_viewModel.SelectedTab?.TileLayout != null)
+                    return;
+
                 if (_viewModel.IsContentTabActive)
                 {
                     ShowContentTab(_viewModel.ActiveContentKey);
@@ -28,8 +32,22 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
+                // タイル表示中は通常の表示切り替えをスキップ
+                if (_viewModel.SelectedTab?.TileLayout != null)
+                {
+                    UpdateManagedWindowLayout(activate: false);
+                    return;
+                }
+
                 if (_viewModel.IsContentTabActive)
                 {
+                    // タイル解除後のレイアウトリセット
+                    ContentTabContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    ContentTabContainer.VerticalAlignment = VerticalAlignment.Stretch;
+                    ContentTabContainer.Width = double.NaN;
+                    ContentTabContainer.Height = double.NaN;
+                    ContentTabContainer.Margin = new System.Windows.Thickness(0);
+
                     // Hide managed-window area and web tabs, then show content tab
                     WindowHostContainer.Visibility = Visibility.Collapsed;
                     HideAllWebTabs();
@@ -59,6 +77,13 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
+                // タイル表示中は通常の表示切り替えをスキップ
+                if (_viewModel.SelectedTab?.TileLayout != null)
+                {
+                    UpdateManagedWindowLayout(activate: false);
+                    return;
+                }
+
                 if (_viewModel.IsWebTabActive)
                 {
                     // Hide other containers
@@ -90,6 +115,10 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
+                // タイル表示中は通常の表示切り替えをスキップ
+                if (_viewModel.SelectedTab?.TileLayout != null)
+                    return;
+
                 if (_viewModel.IsWebTabActive)
                 {
                     ShowWebTab(_viewModel.ActiveWebTabId);
@@ -227,6 +256,12 @@ public partial class MainWindow
             await control.InitializeAsync(tab.WebUrl ?? "https://www.google.com");
         }
 
+        // タイルモードで設定された位置・サイズをリセットして全体表示に戻す
+        control.HorizontalAlignment = HorizontalAlignment.Stretch;
+        control.VerticalAlignment = VerticalAlignment.Stretch;
+        control.Width = double.NaN;
+        control.Height = double.NaN;
+        control.Margin = new System.Windows.Thickness(0);
         control.Visibility = Visibility.Visible;
         WebTabContainer.Visibility = Visibility.Visible;
         _currentWebTabId = tabId.Value;

@@ -15,8 +15,8 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="CanResize"
-        Background="{DynamicResource ApplicationBackgroundBrush}"
-        AllowsTransparency="False"
+        Background="Transparent"
+        AllowsTransparency="True"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         StateChanged="Window_StateChanged"
@@ -245,6 +245,9 @@
                         <MenuItem Header="タブ名を変更" Click="RenameTab_Click" Tag="{Binding}"/>
                         <Separator/>
                         <MenuItem Header="自動埋め込みから除外" Click="ToggleAutoEmbedExclusion_Click" Tag="{Binding}"/>
+                        <Separator Tag="TileSeparator"/>
+                        <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
+                        <MenuItem Header="タイル表示を解除" Click="ReleaseTile_Click" Tag="{Binding}"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>
@@ -267,6 +270,11 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                    <!-- タイル表示中のインジケーター -->
+                    <Border Width="5" Height="5" CornerRadius="2.5"
+                            Background="{DynamicResource AccentFillColorDefaultBrush}"
+                            Margin="4,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding TileLayout, Converter={StaticResource NullToVisibility}}"/>
                     <Button Background="Transparent" BorderThickness="0"
                             Padding="4" Margin="6,0,0,0"
                             Click="CloseTab_Click" Tag="{Binding}"
@@ -316,6 +324,9 @@
                         <MenuItem Header="タブ名を変更" Click="RenameTab_Click" Tag="{Binding}"/>
                         <Separator/>
                         <MenuItem Header="自動埋め込みから除外" Click="ToggleAutoEmbedExclusion_Click" Tag="{Binding}"/>
+                        <Separator Tag="TileSeparator"/>
+                        <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
+                        <MenuItem Header="タイル表示を解除" Click="ReleaseTile_Click" Tag="{Binding}"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>
@@ -324,6 +335,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Image Source="{Binding Icon}" Width="16" Height="16"
@@ -343,7 +355,12 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Button Grid.Column="2" Background="Transparent" BorderThickness="0"
+                    <!-- タイル表示中のインジケーター -->
+                    <Border Grid.Column="2" Width="5" Height="5" CornerRadius="2.5"
+                            Background="{DynamicResource AccentFillColorDefaultBrush}"
+                            Margin="4,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding TileLayout, Converter={StaticResource NullToVisibility}}"/>
+                    <Button Grid.Column="3" Background="Transparent" BorderThickness="0"
                             Padding="4" Margin="6,0,0,0"
                             Click="CloseTab_Click" Tag="{Binding}"
                             Width="20" Height="20" Cursor="Hand">
@@ -394,6 +411,9 @@
                         <MenuItem Header="タブ名を変更" Click="RenameTab_Click" Tag="{Binding}"/>
                         <Separator/>
                         <MenuItem Header="自動埋め込みから除外" Click="ToggleAutoEmbedExclusion_Click" Tag="{Binding}"/>
+                        <Separator Tag="TileSeparator"/>
+                        <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
+                        <MenuItem Header="タイル表示を解除" Click="ReleaseTile_Click" Tag="{Binding}"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>
@@ -405,7 +425,7 @@
 
     </Window.Resources>
 
-    <Border x:Name="MainBorder" BorderThickness="0" Background="{DynamicResource ApplicationBackgroundBrush}"
+    <Border x:Name="MainBorder" BorderThickness="0" 
             UseLayoutRounding="True" SnapsToDevicePixels="True">
         <Grid x:Name="RootGrid" UseLayoutRounding="True" SnapsToDevicePixels="True">
             <!-- Row/Column definitions set by code-behind via ApplyTabHeaderPosition -->
