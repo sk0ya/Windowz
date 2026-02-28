@@ -125,6 +125,7 @@ public partial class MainWindow : Window
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         _hotkeyManager.Initialize(this, _settingsManager);
+        SetupExternalDragHooks();
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -294,6 +295,7 @@ public partial class MainWindow : Window
         _isCleanupCompleted = true;
         _isWaitingForCloseTargets = false;
 
+        RemoveExternalDragHooks();
         RemoveManagedWindowSyncHooks();
 
         _closeWaitCts?.Cancel();

@@ -463,6 +463,14 @@
                     </StackPanel>
                 </ScrollViewer>
 
+                <!-- External window drag-over drop zone indicator -->
+                <Border x:Name="ExternalDropZoneOverlay"
+                        Panel.ZIndex="50"
+                        Visibility="Collapsed"
+                        IsHitTestVisible="False"
+                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                        Opacity="0.3"/>
+
                 <!-- Window Control Buttons -->
                 <StackPanel x:Name="WindowControlsPanel" Orientation="Horizontal">
                     <Button x:Name="MenuButton" Style="{StaticResource TitleBarButtonStyle}" Click="MenuButton_Click" ToolTip="Menu">
