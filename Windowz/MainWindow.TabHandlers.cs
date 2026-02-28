@@ -200,6 +200,8 @@ public partial class MainWindow
         if (tab.IsContentTab || tab.IsWebTab) return;
 
         _tabManager.RemoveTab(tab);
+        // タイルメンバーを解除した場合、ActiveTab が変わらなくてもレイアウトを更新する
+        UpdateManagedWindowLayout(activate: true);
         _viewModel.StatusMessage = $"タブ管理を解除: {tab.DisplayTitle}";
     }
 

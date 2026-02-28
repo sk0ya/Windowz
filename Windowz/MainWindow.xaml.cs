@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private bool _wasMinimized;
     private readonly Dictionary<Guid, WebTabControl> _webTabControls = new();
     private Guid? _currentWebTabId;
+    private bool _isTileModeActive;
     private const int CloseWaitTimeoutMs = 10000;
     private bool _isWaitingForCloseTargets;
     private bool _skipCloseWaitOnce;
@@ -406,8 +407,16 @@ public partial class MainWindow : Window
 
         if (canShowTile)
         {
+            _isTileModeActive = true;
             UpdateTileLayout(activeTile!, activate, positionOnlyUpdate);
             return;
+        }
+
+        // タイルモードから通常モードへ切り替わった最初の呼び出しでビュー状態をリセットする
+        if (_isTileModeActive)
+        {
+            _isTileModeActive = false;
+            ResetTileViewState();
         }
 
         IntPtr targetHandle = IntPtr.Zero;
