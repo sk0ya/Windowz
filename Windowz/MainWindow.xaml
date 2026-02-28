@@ -488,8 +488,7 @@
                         Panel.ZIndex="50"
                         Visibility="Collapsed"
                         IsHitTestVisible="False"
-                        Background="{DynamicResource AccentFillColorDefaultBrush}"
-                        Opacity="0.3"/>
+                        Background="{DynamicResource AccentFillColorDefaultBrush}" />
 
                 <!-- Window Control Buttons -->
                 <StackPanel x:Name="WindowControlsPanel" Orientation="Horizontal">
