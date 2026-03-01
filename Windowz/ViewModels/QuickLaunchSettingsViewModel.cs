@@ -184,6 +184,9 @@ public partial class QuickLaunchTileGroupItem : ObservableObject
 
 public partial class QuickLaunchSettingsViewModel : ObservableObject
 {
+    // ファイル選択ダイアログで選択後、View 側でテキストボックスにフォーカスを当てるために使用
+    public event Action? BrowseDone;
+
     private readonly SettingsManager _settingsManager;
 
     [ObservableProperty]
@@ -502,7 +505,10 @@ public partial class QuickLaunchSettingsViewModel : ObservableObject
         };
 
         if (dialog.ShowDialog() == true)
+        {
             NewQuickLaunchPath = dialog.FileName;
+            BrowseDone?.Invoke();
+        }
     }
 
     [RelayCommand]

@@ -36,6 +36,11 @@ public partial class StartupSettingsPage : UserControl
     {
         InitializeComponent();
         DataContext = viewModel;
+        viewModel.BrowseDone += () =>
+        {
+            StartupPathBox.Focus();
+            StartupPathBox.CaretIndex = viewModel.NewStartupPath.Length;
+        };
     }
 
     private void StartupPath_PreviewKeyDown(object sender, KeyEventArgs e)

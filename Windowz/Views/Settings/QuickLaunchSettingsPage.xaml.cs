@@ -36,6 +36,11 @@ public partial class QuickLaunchSettingsPage : UserControl
     {
         InitializeComponent();
         DataContext = viewModel;
+        viewModel.BrowseDone += () =>
+        {
+            QuickLaunchPathBox.Focus();
+            QuickLaunchPathBox.CaretIndex = viewModel.NewQuickLaunchPath.Length;
+        };
     }
 
     private void QuickLaunchPath_PreviewKeyDown(object sender, KeyEventArgs e)

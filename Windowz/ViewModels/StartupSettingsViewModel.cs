@@ -170,6 +170,9 @@ public partial class StartupTileGroupItem : ObservableObject
 
 public partial class StartupSettingsViewModel : ObservableObject
 {
+    // ファイル選択ダイアログで選択後、View 側でテキストボックスにフォーカスを当てるために使用
+    public event Action? BrowseDone;
+
     private readonly SettingsManager _settingsManager;
 
     [ObservableProperty]
@@ -496,6 +499,7 @@ public partial class StartupSettingsViewModel : ObservableObject
         if (dialog.ShowDialog() == true)
         {
             NewStartupPath = dialog.FileName;
+            BrowseDone?.Invoke();
         }
     }
 
