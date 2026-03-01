@@ -66,25 +66,17 @@
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- チェックボックス -->
-                                        <CheckBox Grid.Column="0"
-                                                  IsChecked="{Binding IsSelected}"
-                                                  VerticalAlignment="Center"
-                                                  Margin="0,0,6,0"
-                                                  ToolTip="2〜4個チェックして「タイル表示にする」でグループ作成"/>
-
                                         <!-- アイコン -->
-                                        <ui:SymbolIcon Grid.Column="1" Symbol="Globe24"
+                                        <ui:SymbolIcon Grid.Column="0" Symbol="Globe24"
                                                VerticalAlignment="Center" FontSize="20"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                Margin="0,0,8,0"
                                                Visibility="{Binding IsUrl, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                        <Image Grid.Column="1" Source="{Binding Icon}" Width="20" Height="20"
+                                        <Image Grid.Column="0" Source="{Binding Icon}" Width="20" Height="20"
                                                Margin="0,0,8,0" VerticalAlignment="Center"
                                                RenderOptions.BitmapScalingMode="HighQuality">
                                             <Image.Style>
@@ -100,7 +92,7 @@
                                                 </Style>
                                             </Image.Style>
                                         </Image>
-                                        <ui:SymbolIcon Grid.Column="1" Symbol="Apps24"
+                                        <ui:SymbolIcon Grid.Column="0" Symbol="Apps24"
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}">
@@ -121,7 +113,7 @@
                                         </ui:SymbolIcon>
 
                                         <!-- 名前・パス・引数 -->
-                                        <StackPanel Grid.Column="2">
+                                        <StackPanel Grid.Column="1">
                                             <Grid Margin="0,0,0,2">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
@@ -141,7 +133,7 @@
                                         </StackPanel>
 
                                         <!-- 削除ボタン -->
-                                        <ui:Button Grid.Column="3"
+                                        <ui:Button Grid.Column="2"
                                                    Icon="{ui:SymbolIcon Dismiss24}"
                                                    Command="{Binding DataContext.RemoveStartupApplicationCommand, Source={x:Reference Name=AddAppButton}}"
                                                    CommandParameter="{Binding}"
@@ -159,16 +151,6 @@
                                Visibility="{Binding HasNoStartupApplications, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                FontSize="12" HorizontalAlignment="Center" Margin="0,8"/>
-
-                    <!-- タイル表示にするボタン（2〜4個選択時に表示） -->
-                    <Border Margin="0,4,0,0"
-                            Visibility="{Binding CanCreateTile, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <ui:Button HorizontalAlignment="Left"
-                                   Icon="{ui:SymbolIcon Grid28}"
-                                   Content="{Binding CreateTileButtonLabel}"
-                                   Command="{Binding CreateTileGroupCommand}"
-                                   Appearance="Primary"/>
-                    </Border>
 
                     <TextBlock Text="ヒント: アプリカードをドラッグして別のカードにドロップするとタイルグループを作成できます"
                                FontSize="11" Margin="0,6,0,0"
