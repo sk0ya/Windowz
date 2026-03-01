@@ -21,10 +21,17 @@ public sealed class SettingsManager
     public event Action? AutoEmbedExclusionsChanged;
 
     public SettingsManager()
+        : this(null)
     {
-        string appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WindowzTabManager");
+    }
+
+    public SettingsManager(string? settingsDirectory)
+    {
+        string appDataPath = string.IsNullOrWhiteSpace(settingsDirectory)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "WindowzTabManager")
+            : settingsDirectory;
 
         Directory.CreateDirectory(appDataPath);
         _settingsFilePath = Path.Combine(appDataPath, "settings.json");
