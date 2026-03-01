@@ -666,9 +666,12 @@ public partial class MainWindow : Window
                 _isSyncingManagedWindowFromWind = false;
             }
 
-            // 同期フックは先頭ウィンドウタブに設定
+            // 同期フックは先頭ウィンドウタブに設定（LOCATIONCHANGE・最小化など）
             EnsureManagedWindowSyncHooks(windowMembers[0].Handle);
             _activeManagedWindowHandle = windowMembers[0].Handle;
+
+            // 非プライマリプロセスのタイルウィンドウ用追加フックを設定
+            SetupTileExtraHooks(windowMembers.Select(m => (m.Handle, m.Index)).ToList());
         }
         else
         {

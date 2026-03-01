@@ -50,6 +50,10 @@ public partial class MainWindow
     private bool _isSyncingWindFromManagedWindow;
     private long _ignoreManagedWindowEventsUntilTick;
 
+    // タイル表示中: 非プライマリウィンドウのプロセスごとに追加したフックの一覧
+    private readonly List<IntPtr> _tileExtraHooks = new();
+    private readonly Dictionary<IntPtr, int> _tileWindowFractionIndex = new();
+
     private void EnsureManagedWindowSyncHooks(IntPtr handle)
     {
         if (handle == IntPtr.Zero)
@@ -137,9 +141,53 @@ public partial class MainWindow
             _managedWinEventHookForeground = IntPtr.Zero;
         }
 
+        // タイル追加フックも解除してから null 化する
+        RemoveTileExtraHooks();
+
         _managedWinEventProc = null;
         _managedSyncWindowHandle = IntPtr.Zero;
         _managedWindowMoveOrSizeInProgress = false;
+    }
+
+    private void SetupTileExtraHooks(IReadOnlyList<(IntPtr Handle, int FractionIndex)> tileWindows)
+    {
+        RemoveTileExtraHooks();
+        foreach (var (h, idx) in tileWindows)
+            _tileWindowFractionIndex[h] = idx;
+
+        if (_managedWinEventProc == null) return;
+
+        // プライマリウィンドウのプロセスは EnsureManagedWindowSyncHooks で既にカバー済み。
+        // 異なるプロセスのウィンドウに対して MOVESIZESTART/END・LOCATIONCHANGE・MINIMIZESTART の
+        // プロセス別フックを追加する。
+        NativeMethods.GetWindowThreadProcessId(_managedSyncWindowHandle, out uint primaryPid);
+        var hookedPids = new HashSet<uint> { primaryPid };
+
+        foreach (var (handle, _) in tileWindows)
+        {
+            if (handle == _managedSyncWindowHandle) continue;
+
+            NativeMethods.GetWindowThreadProcessId(handle, out uint pid);
+            if (pid == 0 || !hookedPids.Add(pid)) continue;
+
+            void AddHook(uint eMin, uint eMax)
+            {
+                var h = SetWinEventHook(eMin, eMax, IntPtr.Zero, _managedWinEventProc, pid, 0, WINEVENT_OUTOFCONTEXT_M);
+                if (h != IntPtr.Zero) _tileExtraHooks.Add(h);
+            }
+
+            AddHook(EVENT_SYSTEM_MOVESIZESTART_M, EVENT_SYSTEM_MOVESIZEEND_M);
+            AddHook(EVENT_SYSTEM_MINIMIZESTART_M, EVENT_SYSTEM_MINIMIZESTART_M);
+            AddHook(EVENT_OBJECT_LOCATIONCHANGE_M, EVENT_OBJECT_LOCATIONCHANGE_M);
+        }
+    }
+
+    private void RemoveTileExtraHooks()
+    {
+        foreach (var h in _tileExtraHooks)
+            if (h != IntPtr.Zero) UnhookWinEvent(h);
+        _tileExtraHooks.Clear();
+        _tileWindowFractionIndex.Clear();
     }
 
     private void ManagedWindowWinEventCallback(
@@ -151,10 +199,66 @@ public partial class MainWindow
         uint dwEventThread,
         uint dwmsEventTime)
     {
-        if (_managedSyncWindowHandle == IntPtr.Zero || hwnd != _managedSyncWindowHandle)
-            return;
+        bool isPrimary = _managedSyncWindowHandle != IntPtr.Zero && hwnd == _managedSyncWindowHandle;
 
-        Dispatcher.BeginInvoke(DispatcherPriority.Send, () => OnManagedWindowEvent(eventType, hwnd, idObject));
+        if (isPrimary)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Send, () => OnManagedWindowEvent(eventType, hwnd, idObject));
+            return;
+        }
+
+        // 追加フック経由: プライマリ以外のタイルウィンドウのイベントを処理する
+        if (_tileWindowFractionIndex.ContainsKey(hwnd))
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Send, () => OnTileWindowEvent(eventType, hwnd, idObject));
+        }
+    }
+
+    private void OnTileWindowEvent(uint eventType, IntPtr hwnd, int idObject)
+    {
+        if (!_tileWindowFractionIndex.ContainsKey(hwnd)) return;
+
+        switch (eventType)
+        {
+            case EVENT_SYSTEM_MOVESIZESTART_M:
+                if (_isSyncingManagedWindowFromWind ||
+                    Environment.TickCount64 <= _ignoreManagedWindowEventsUntilTick)
+                    return;
+                _managedWindowMoveOrSizeInProgress = true;
+                return;
+
+            case EVENT_SYSTEM_MOVESIZEEND_M:
+                if (_isSyncingManagedWindowFromWind ||
+                    Environment.TickCount64 <= _ignoreManagedWindowEventsUntilTick)
+                    return;
+                _managedWindowMoveOrSizeInProgress = false;
+                SyncWindFromTileWindow(hwnd);
+                return;
+
+            case EVENT_SYSTEM_MINIMIZESTART_M:
+                if (_isSyncingManagedWindowFromWind) return;
+                if (WindowState != WindowState.Minimized)
+                {
+                    _isSyncingWindFromManagedWindow = true;
+                    try { WindowState = WindowState.Minimized; }
+                    finally { _isSyncingWindFromManagedWindow = false; }
+                }
+                return;
+
+            case EVENT_OBJECT_LOCATIONCHANGE_M:
+                if (_isSyncingManagedWindowFromWind ||
+                    Environment.TickCount64 <= _ignoreManagedWindowEventsUntilTick)
+                    return;
+                if (idObject != OBJID_WINDOW_M) return;
+                if (NativeMethods.IsZoomed(hwnd))
+                {
+                    HandleManagedWindowMaximize(hwnd);
+                    return;
+                }
+                if (!_managedWindowMoveOrSizeInProgress && !NativeMethods.IsIconic(hwnd))
+                    SyncWindFromTileWindow(hwnd);
+                return;
+        }
     }
 
     private void OnManagedWindowEvent(uint eventType, IntPtr hwnd, int idObject)
@@ -351,8 +455,9 @@ public partial class MainWindow
             return;
         }
 
-        // タイル表示中は Windowz のサイズ同期をスキップ
-        if (_viewModel.SelectedTab?.TileLayout != null)
+        // タイル表示中: ドラッグ操作中はスキップ（MOVESIZEEND 後に同期する）
+        var tile = _viewModel.SelectedTab?.TileLayout;
+        if (tile != null && _managedWindowMoveOrSizeInProgress)
             return;
 
         if (!NativeMethods.IsWindow(_managedSyncWindowHandle))
@@ -371,6 +476,8 @@ public partial class MainWindow
         }
 
         _isSyncingWindFromManagedWindow = true;
+        bool movedWindowz = false;
+        bool resizedWindowz = false;
         try
         {
             if (isMinimized)
@@ -398,22 +505,119 @@ public partial class MainWindow
             }
 
             double nextLeft = managedRect.Left - offsetXPx;
-            double nextTop = managedRect.Top - offsetYPx;
-            double nextContainerWidthDip = managedRect.Width / dpiScaleX;
-            double nextContainerHeightDip = managedRect.Height / dpiScaleY;
-            double nextWidth = Math.Max(MinWidth, nextContainerWidthDip + frameExtraWidthDip);
-            double nextHeight = Math.Max(MinHeight, nextContainerHeightDip + frameExtraHeightDip);
+            double nextTop  = managedRect.Top  - offsetYPx;
 
             const double epsilon = 0.5;
-            if (Math.Abs(Left - nextLeft) > epsilon) Left = nextLeft;
-            if (Math.Abs(Top - nextTop) > epsilon) Top = nextTop;
-            if (Math.Abs(Width - nextWidth) > epsilon) Width = nextWidth;
-            if (Math.Abs(Height - nextHeight) > epsilon) Height = nextHeight;
+
+            if (tile != null &&
+                _tileWindowFractionIndex.TryGetValue(_managedSyncWindowHandle, out int primaryFracIdx))
+            {
+                // タイル表示中: 監視ウィンドウの割合から Windowz の位置・サイズを逆算
+                var fractions = tile.GetLayoutFractions();
+                if (primaryFracIdx < fractions.Length)
+                {
+                    var f = fractions[primaryFracIdx];
+                    nextLeft -= f.Left * WindowHostContainer.ActualWidth  * dpiScaleX;
+                    nextTop  -= f.Top  * WindowHostContainer.ActualHeight * dpiScaleY;
+                    if (Math.Abs(Left - nextLeft) > epsilon) { Left = nextLeft; movedWindowz = true; }
+                    if (Math.Abs(Top  - nextTop)  > epsilon) { Top  = nextTop;  movedWindowz = true; }
+
+                    if (f.Width > 0)
+                    {
+                        double nextW = Math.Max(MinWidth, managedRect.Width / f.Width / dpiScaleX + frameExtraWidthDip);
+                        if (Math.Abs(Width - nextW) > epsilon) { Width = nextW; movedWindowz = true; resizedWindowz = true; }
+                    }
+                    if (f.Height > 0)
+                    {
+                        double nextH = Math.Max(MinHeight, managedRect.Height / f.Height / dpiScaleY + frameExtraHeightDip);
+                        if (Math.Abs(Height - nextH) > epsilon) { Height = nextH; movedWindowz = true; resizedWindowz = true; }
+                    }
+                }
+            }
+            else
+            {
+                if (Math.Abs(Left - nextLeft) > epsilon) { Left = nextLeft; movedWindowz = true; }
+                if (Math.Abs(Top  - nextTop)  > epsilon) { Top  = nextTop;  movedWindowz = true; }
+
+                double nextContainerWidthDip  = managedRect.Width  / dpiScaleX;
+                double nextContainerHeightDip = managedRect.Height / dpiScaleY;
+                double nextWidth  = Math.Max(MinWidth,  nextContainerWidthDip  + frameExtraWidthDip);
+                double nextHeight = Math.Max(MinHeight, nextContainerHeightDip + frameExtraHeightDip);
+                if (Math.Abs(Width  - nextWidth)  > epsilon) Width  = nextWidth;
+                if (Math.Abs(Height - nextHeight) > epsilon) Height = nextHeight;
+            }
         }
         finally
         {
             _isSyncingWindFromManagedWindow = false;
         }
+
+        // タイル表示中: Windowz が移動/リサイズした場合、他のタイルウィンドウを再配置する
+        // サイズ変更時は positionOnlyUpdate: false にして Web タブも再計算させる
+        if (tile != null && movedWindowz)
+        {
+            UpdateManagedWindowLayout(activate: false, positionOnlyUpdate: !resizedWindowz);
+        }
+    }
+
+    // グローバルフック経由で捕捉した非プライマリタイルウィンドウのドラッグ完了時に呼ぶ
+    private void SyncWindFromTileWindow(IntPtr hwnd)
+    {
+        if (!_tileWindowFractionIndex.TryGetValue(hwnd, out int fractionIdx)) return;
+
+        var tile = _viewModel.SelectedTab?.TileLayout;
+        if (tile == null) return;
+
+        if (_viewModel.IsWindowPickerOpen || _viewModel.IsCommandPaletteOpen ||
+            _viewModel.IsContentTabActive || _viewModel.IsWebTabActive)
+            return;
+
+        if (!NativeMethods.IsWindow(hwnd)) return;
+        if (!NativeMethods.GetWindowRect(hwnd, out var rect)) return;
+
+        var fractions = tile.GetLayoutFractions();
+        if (fractionIdx >= fractions.Length) return;
+
+        if (!TryGetManagedWindowOffsets(
+                out double dpiScaleX, out double dpiScaleY,
+                out double offsetXPx, out double offsetYPx,
+                out double frameExtraWidthDip, out double frameExtraHeightDip))
+            return;
+
+        var f = fractions[fractionIdx];
+        double nextLeft = rect.Left - offsetXPx - f.Left * WindowHostContainer.ActualWidth  * dpiScaleX;
+        double nextTop  = rect.Top  - offsetYPx - f.Top  * WindowHostContainer.ActualHeight * dpiScaleY;
+
+        const double epsilon = 0.5;
+        bool moved = false;
+        bool resized = false;
+        _isSyncingWindFromManagedWindow = true;
+        try
+        {
+            if (WindowState == WindowState.Maximized) WindowState = WindowState.Normal;
+            if (Math.Abs(Left - nextLeft) > epsilon) { Left = nextLeft; moved = true; }
+            if (Math.Abs(Top  - nextTop)  > epsilon) { Top  = nextTop;  moved = true; }
+
+            // フラクションから Windowz サイズを逆算
+            if (f.Width > 0)
+            {
+                double nextW = Math.Max(MinWidth, rect.Width / f.Width / dpiScaleX + frameExtraWidthDip);
+                if (Math.Abs(Width - nextW) > epsilon) { Width = nextW; moved = true; resized = true; }
+            }
+            if (f.Height > 0)
+            {
+                double nextH = Math.Max(MinHeight, rect.Height / f.Height / dpiScaleY + frameExtraHeightDip);
+                if (Math.Abs(Height - nextH) > epsilon) { Height = nextH; moved = true; resized = true; }
+            }
+        }
+        finally
+        {
+            _isSyncingWindFromManagedWindow = false;
+        }
+
+        // サイズ変更時は positionOnlyUpdate: false にして Web タブも再計算させる
+        if (moved)
+            UpdateManagedWindowLayout(activate: false, positionOnlyUpdate: !resized);
     }
 
     private bool TryGetManagedWindowOffsets(
