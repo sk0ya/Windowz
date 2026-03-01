@@ -398,7 +398,6 @@ public partial class MainWindow
                     lowestTile,
                     0, 0, 0, 0,
                     NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
-                UpdateBackdropPosition();
             }
         }
 
@@ -414,8 +413,6 @@ public partial class MainWindow
             0,
             0,
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
-
-        UpdateBackdropPosition();
     }
 
     private void HandleManagedWindowMaximize(IntPtr hwnd)

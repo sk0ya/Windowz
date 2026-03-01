@@ -12,7 +12,6 @@ public partial class MainWindow
         {
             ApplyTabHeaderPosition(position);
             UpdateManagedWindowLayout(activate: false);
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, UpdateBlockerPosition);
         });
     }
 
@@ -337,7 +336,6 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
             UpdateManagedWindowLayout(activate: false);
-            UpdateBlockerPosition();
         });
     }
 }

@@ -155,21 +155,6 @@ public partial class MainWindow
         Marshal.StructureToPtr(mmi, lParam, true);
     }
 
-    private void SuppressBorder()
-    {
-        // Windowz behavior: no extra native border suppression.
-    }
-
-    private void UpdateBackdropVisibility()
-    {
-        // Windowz behavior: no backdrop helper window.
-    }
-
-    private void UpdateBackdropPosition()
-    {
-        // Windowz behavior: no backdrop helper window.
-    }
-
     private const int MONITOR_DEFAULTTONEAREST = 2;
 
     [DllImport("user32.dll")]

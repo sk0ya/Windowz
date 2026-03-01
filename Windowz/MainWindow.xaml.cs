@@ -347,11 +347,6 @@ public partial class MainWindow : Window
         UpdateManagedWindowLayout(activate: false);
     }
 
-    private void UpdateBlockerPosition()
-    {
-        // Windowz behavior: no resize helper blocker.
-    }
-
     private void Window_StateChanged(object sender, EventArgs e)
     {
         // Update maximize button icon

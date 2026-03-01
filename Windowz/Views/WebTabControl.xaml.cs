@@ -115,8 +115,8 @@ public partial class WebTabControl : UserControl, IDisposable
         WebView.CoreWebView2.Navigate(url);
 
         // 初期化完了後、WebView にフォーカスを移す
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
-            () => WebView.Focus());
+        await Dispatcher.InvokeAsync(() => WebView.Focus(),
+            System.Windows.Threading.DispatcherPriority.Input);
     }
 
     public void Navigate(string urlOrSearch)

@@ -53,7 +53,6 @@ public partial class MainWindow
                     HideAllWebTabs();
                     WebTabContainer.Visibility = Visibility.Collapsed;
                     _currentWebTabId = null;
-                    UpdateBackdropVisibility();
                     ShowContentTab(_viewModel.ActiveContentKey);
                     UpdateManagedWindowLayout(activate: false);
                 }
@@ -92,7 +91,6 @@ public partial class MainWindow
                     ContentTabContent.Content = null;
 
                     ShowWebTab(_viewModel.ActiveWebTabId);
-                    UpdateBackdropVisibility();
                     UpdateManagedWindowLayout(activate: false);
                 }
                 else
@@ -130,7 +128,6 @@ public partial class MainWindow
         {
             if (_viewModel.IsCommandPaletteOpen)
             {
-                UpdateBackdropVisibility();
                 if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
                 {
                     if (_webTabControls.TryGetValue(_currentWebTabId.Value, out var webControl))

@@ -12,7 +12,6 @@ public partial class MainWindow
     private void AddWindowButton_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.OpenWindowPickerCommand.Execute(null);
-        UpdateBackdropVisibility();
 
         if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
         {
@@ -31,7 +30,6 @@ public partial class MainWindow
                 webControl.Visibility = Visibility.Visible;
         }
 
-        UpdateBackdropVisibility();
         UpdateManagedWindowLayout(activate: true);
 
         RequestEmbeddedContentRedraw();
