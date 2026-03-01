@@ -10,6 +10,8 @@ public sealed class AppSettings
 
     public List<StartupGroupSetting> StartupGroups { get; set; } = new();
 
+    public List<StartupTileGroupSetting> StartupTileGroups { get; set; } = new();
+
     /// <summary>
     /// "None" = release windows to desktop (default),
     /// "All" = close all tab windows,
@@ -75,6 +77,16 @@ public sealed class QuickLaunchAppSetting
     public string Name { get; set; } = string.Empty;
 
     public bool ShouldEmbed { get; set; } = true;
+}
+
+public sealed class StartupTileGroupSetting
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>
+    /// タイルスロット順（0=左上, 1=右上/右, 2=左下, 3=右下）に対応するアプリパス。
+    /// </summary>
+    public List<string> AppPaths { get; set; } = new();
 }
 
 public sealed class HotkeyBindingSetting

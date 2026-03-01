@@ -208,6 +208,35 @@ public sealed class SettingsManager
         SaveSettings();
     }
 
+    public StartupTileGroupSetting AddStartupTileGroup(List<string> appPaths)
+    {
+        var group = new StartupTileGroupSetting { AppPaths = appPaths };
+        _settings.StartupTileGroups.Add(group);
+        SaveSettings();
+        return group;
+    }
+
+    public void RemoveStartupTileGroup(string id)
+    {
+        var group = _settings.StartupTileGroups.FirstOrDefault(g => g.Id == id);
+        if (group != null)
+        {
+            _settings.StartupTileGroups.Remove(group);
+            SaveSettings();
+        }
+    }
+
+    public void UpdateStartupTileGroup(StartupTileGroupSetting group)
+    {
+        SaveSettings();
+    }
+
+    public bool IsInStartupTileGroup(string path)
+    {
+        return _settings.StartupTileGroups.Any(g =>
+            g.AppPaths.Any(p => p.Equals(path, StringComparison.OrdinalIgnoreCase)));
+    }
+
     public QuickLaunchAppSetting AddQuickLaunchApp(string path, string arguments = "", string? name = null)
     {
         if (string.IsNullOrWhiteSpace(path))

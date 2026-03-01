@@ -154,18 +154,13 @@ public partial class App : Application
             webTab.IsLaunchedAtStartup = true;
         }
 
-        if (processConfigs.Count > 0)
-        {
-            await viewModel.EmbedStartupProcessesAsync(processConfigs, settingsManager.Settings, preExistingWindows);
-        }
-        else if (urlApps.Count > 0)
-        {
-            if (tabManager.Tabs.Count > 0)
-                tabManager.ActiveTab = tabManager.Tabs.Last();
-        }
-
         if (urlApps.Count > 0 || processConfigs.Count > 0)
         {
+            await viewModel.EmbedStartupProcessesAsync(
+                processConfigs,
+                urlApps,
+                settingsManager.Settings,
+                preExistingWindows);
             viewModel.ApplyStartupTabOrder(settingsManager.Settings.StartupApplications);
         }
 

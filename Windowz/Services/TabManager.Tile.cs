@@ -49,6 +49,40 @@ public partial class TabManager
     }
 
     /// <summary>
+    /// 指定したタブ群（2〜4個）をタイル表示グループとして登録する。
+    /// 多選択状態を前提としないため、スタートアップ時の自動タイル適用に使用する。
+    /// </summary>
+    public TileLayout? TileSpecificTabs(IEnumerable<TabItem> tabs)
+    {
+        var candidates = tabs
+            .Where(t => t.IsContentTab || t.IsWebTab || t.Window != null)
+            .ToList();
+
+        if (candidates.Count < 2 || candidates.Count > 4)
+            return null;
+
+        // 既存タイルから解除
+        foreach (var tab in candidates)
+        {
+            if (tab.TileLayout != null)
+                ReleaseTileInternal(tab.TileLayout);
+        }
+
+        // タイル作成
+        var tile = new TileLayout();
+        foreach (var tab in candidates)
+        {
+            tile.Tabs.Add(tab);
+            tab.TileLayout = tile;
+        }
+
+        ReorderTabsForTile(tile);
+        TileLayouts.Add(tile);
+
+        return tile;
+    }
+
+    /// <summary>
     /// タイルグループを解除して各タブを独立状態に戻す。
     /// </summary>
     public void ReleaseTile(TileLayout tile)

@@ -10,42 +10,71 @@ public partial class MainViewModel
 {
     public async Task EmbedStartupProcessesAsync(
         List<(Process Process, StartupApplication Config)> processConfigs,
+        List<StartupApplication> urlConfigs,
         AppSettings settings,
         HashSet<IntPtr>? preExistingWindows = null)
     {
-        if (processConfigs.Count == 0) return;
-
-        // Wait for windows to be created
-        await Task.Delay(1500);
-
-        // Embed each process and track the mapping from config to tab
         var configTabPairs = new List<(StartupApplication Config, TabItem Tab)>();
+        if (processConfigs.Count == 0 && urlConfigs.Count == 0)
+            return;
 
-        foreach (var (process, config) in processConfigs)
+        if (processConfigs.Count > 0)
         {
-            try
-            {
-                var windowInfo = await FindStartupWindowAsync(process, config, preExistingWindows);
+            // Wait for windows to be created
+            await Task.Delay(1500);
 
-                if (windowInfo != null)
+            // Embed each process and track the mapping from config to tab
+            foreach (var (process, config) in processConfigs)
+            {
+                try
                 {
-                    var tab = _tabManager.AddTab(windowInfo, activate: false);
-                    if (tab != null)
+                    var windowInfo = await FindStartupWindowAsync(process, config, preExistingWindows);
+
+                    if (windowInfo != null)
                     {
-                        tab.IsLaunchedAtStartup = true;
-                        StatusMessage = $"Added: {tab.Title}";
-                        configTabPairs.Add((config, tab));
+                        var tab = _tabManager.AddTab(windowInfo, activate: false);
+                        if (tab != null)
+                        {
+                            tab.IsLaunchedAtStartup = true;
+                            StatusMessage = $"Added: {tab.Title}";
+                            configTabPairs.Add((config, tab));
+                        }
                     }
                 }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to embed process: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+        }
+
+        if (urlConfigs.Count > 0)
+        {
+            // URL が重複している場合でも 1:1 で対応付けできるようにする。
+            var startupWebTabs = _tabManager.Tabs
+                .Where(t => t.IsWebTab && t.IsLaunchedAtStartup)
+                .ToList();
+            var usedWebTabIds = new HashSet<Guid>();
+
+            foreach (var config in urlConfigs)
             {
-                Debug.WriteLine($"Failed to embed process: {ex.Message}");
+                var webTab = startupWebTabs.FirstOrDefault(t =>
+                    !usedWebTabIds.Contains(t.Id) &&
+                    string.Equals(t.WebUrl, config.Path, StringComparison.OrdinalIgnoreCase));
+
+                if (webTab == null)
+                    continue;
+
+                usedWebTabIds.Add(webTab.Id);
+                configTabPairs.Add((config, webTab));
             }
         }
 
         // Apply groups from settings
         ApplyStartupGroups(configTabPairs, settings);
+
+        // スタートアップタイルグループを適用
+        ApplyStartupTileGroups(configTabPairs, settings);
 
         // Activate the correct tab now that all tabs and groups are set up.
         // During the loop above, tabs were added without activation to avoid
@@ -94,6 +123,27 @@ public partial class MainViewModel
             {
                 _tabManager.AddTabToGroup(tab, group);
             }
+        }
+    }
+
+    /// <summary>
+    /// 設定の StartupTileGroups に従いスタートアップタブをタイル表示にする。
+    /// </summary>
+    private void ApplyStartupTileGroups(
+        List<(StartupApplication Config, TabItem Tab)> configTabPairs,
+        AppSettings settings)
+    {
+        foreach (var tileGroup in settings.StartupTileGroups)
+        {
+            var tabs = tileGroup.AppPaths
+                .Select(path => configTabPairs
+                    .FirstOrDefault(p => p.Config.Path.Equals(path, StringComparison.OrdinalIgnoreCase))
+                    .Tab)
+                .Where(t => t != null)
+                .ToList();
+
+            if (tabs.Count >= 2)
+                _tabManager.TileSpecificTabs(tabs!);
         }
     }
 
