@@ -173,6 +173,9 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
 
+    public const uint GW_HWNDFIRST = 0;
+    public const uint GW_HWNDNEXT  = 2;
+
     [DllImport("gdi32.dll")]
     public static extern IntPtr CreateRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect);
 

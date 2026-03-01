@@ -212,6 +212,16 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Send, () => OnTileWindowEvent(eventType, hwnd, idObject));
         }
+        else if (eventType == EVENT_SYSTEM_FOREGROUND_M && _tileWindowFractionIndex.Count > 0)
+        {
+            // タイル表示中: Windowz 自身または Web タブがフォアグラウンドになった場合も Z 順を維持する
+            Dispatcher.BeginInvoke(DispatcherPriority.Send, () =>
+            {
+                var windHwnd = new WindowInteropHelper(this).Handle;
+                if (hwnd == windHwnd && _viewModel.SelectedTab?.TileLayout != null)
+                    EnsureWindBehindManagedWindow(hwnd);
+            });
+        }
     }
 
     private void OnTileWindowEvent(uint eventType, IntPtr hwnd, int idObject)
@@ -257,6 +267,10 @@ public partial class MainWindow
                 }
                 if (!_managedWindowMoveOrSizeInProgress && !NativeMethods.IsIconic(hwnd))
                     SyncWindFromTileWindow(hwnd);
+                return;
+
+            case EVENT_SYSTEM_FOREGROUND_M:
+                EnsureWindBehindManagedWindow(hwnd);
                 return;
         }
     }
@@ -349,7 +363,10 @@ public partial class MainWindow
         }
 
         var windowzHwnd = new WindowInteropHelper(this).Handle;
-        if (windowzHwnd == IntPtr.Zero || windowzHwnd == hwnd || !NativeMethods.IsWindow(windowzHwnd))
+        if (windowzHwnd == IntPtr.Zero || !NativeMethods.IsWindow(windowzHwnd))
+            return;
+        // タイル表示中でなく Windowz 自身がフォアグラウンドの場合は処理不要
+        if (windowzHwnd == hwnd && _viewModel.SelectedTab?.TileLayout == null)
             return;
 
         // タイル表示中は全タイルウィンドウの後ろに Windowz を配置する
@@ -365,21 +382,23 @@ public partial class MainWindow
             if (tileHandles.Count > 0)
             {
                 // 全タイルウィンドウを順に HWND_TOP へ押し上げて Z 順を確定させる
+                // (SWP_NOREDRAW は付けない: Z 順変更後に再描画されないと視覚的にずれる)
                 foreach (var h in tileHandles)
                 {
                     NativeMethods.SetWindowPos(
                         h, NativeMethods.HWND_TOP, 0, 0, 0, 0,
                         NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE |
-                        NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOREDRAW);
+                        NativeMethods.SWP_NOACTIVATE);
                 }
-                // tileHandles[0] が Z 順で最下位になるため、その下に Windowz を配置する
+                // HWND_TOP を拒否したウィンドウは元の低い Z 位置に残るため、
+                // 「タブ順先頭」ではなく「実際に最も Z 順が低いタイルウィンドウ」を基準にする
+                var lowestTile = FindLowestInZOrder(tileHandles);
                 NativeMethods.SetWindowPos(
                     windowzHwnd,
-                    tileHandles[0],
+                    lowestTile,
                     0, 0, 0, 0,
                     NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
                 UpdateBackdropPosition();
-                return;
             }
         }
 
@@ -618,6 +637,26 @@ public partial class MainWindow
         // サイズ変更時は positionOnlyUpdate: false にして Web タブも再計算させる
         if (moved)
             UpdateManagedWindowLayout(activate: false, positionOnlyUpdate: !resized);
+    }
+
+    /// <summary>
+    /// handles の中で Z 順が最も低い（最も背面にある）ウィンドウを返す。
+    /// GetWindow で全トップレベルウィンドウを上から下へ走査し、最後に見つかった
+    /// ハンドルが実際の最下位になる。HWND_TOP 拒否ウィンドウにも対応。
+    /// </summary>
+    private static IntPtr FindLowestInZOrder(IReadOnlyList<IntPtr> handles)
+    {
+        var set = new HashSet<IntPtr>(handles);
+        IntPtr lowest = handles[0]; // フォールバック
+
+        IntPtr cur = NativeMethods.GetWindow(handles[0], NativeMethods.GW_HWNDFIRST);
+        while (cur != IntPtr.Zero)
+        {
+            if (set.Contains(cur))
+                lowest = cur; // 更新し続けることで最後 = 最下位
+            cur = NativeMethods.GetWindow(cur, NativeMethods.GW_HWNDNEXT);
+        }
+        return lowest;
     }
 
     private bool TryGetManagedWindowOffsets(

@@ -647,15 +647,16 @@ public partial class MainWindow : Window
                         bringToFront: false, windHwnd);
                 }
 
-                // ActivateManagedWindow はループ内で Windowz を各ウィンドウの直下へ配置するため、
-                // ループ終了後は最後に処理したウィンドウだけが Windowz より上に残る。
-                // 最初に配置した windowMembers[0] が Z 順で最下位にあるため、
-                // その下へ Windowz を移動することで全タイルウィンドウの後ろに収まる。
+                // ActivateManagedWindow はループ内で Windowz を各ウィンドウの直下へ配置するが、
+                // HWND_TOP を拒否したウィンドウは元の低い Z 位置に残る場合がある。
+                // 実際に最も Z 順が低いタイルウィンドウを探してその下に Windowz を配置する。
                 if (windowMembers.Count > 1)
                 {
+                    var tileHandleList = windowMembers.Select(m => m.Handle).ToList();
+                    var lowestTile = FindLowestInZOrder(tileHandleList);
                     NativeMethods.SetWindowPos(
                         windHwnd,
-                        windowMembers[0].Handle,
+                        lowestTile,
                         0, 0, 0, 0,
                         NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE |
                         NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOREDRAW);
