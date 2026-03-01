@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Windows.Data;
 using WindowzTabManager.Models;
 using WindowzTabManager.Services;
@@ -48,9 +49,32 @@ public partial class CommandPaletteViewModel : ObservableObject
     {
         Items.Clear();
 
-        // QuickLaunch apps
+        // QuickLaunch apps and tile groups (in settings order)
+        var tiledPathToGroup = new Dictionary<string, QuickLaunchTileGroupSetting>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tg in _settingsManager.Settings.QuickLaunchTileGroups)
+            foreach (var p in tg.AppPaths)
+                tiledPathToGroup.TryAdd(p, tg);
+
+        var emittedTileGroupIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var app in _settingsManager.Settings.QuickLaunchApps)
         {
+            if (tiledPathToGroup.TryGetValue(app.Path, out var tileGroup))
+            {
+                if (emittedTileGroupIds.Add(tileGroup.Id))
+                {
+                    Items.Add(new CommandPaletteItem
+                    {
+                        Name = tileGroup.DisplayName,
+                        Category = "QuickLaunch",
+                        Description = $"タイル起動 ({tileGroup.AppPaths.Count}個)",
+                        Tag = tileGroup,
+                        Icon = SymbolRegular.Grid24
+                    });
+                }
+                continue;
+            }
+
             Items.Add(new CommandPaletteItem
             {
                 Name = app.Name,
@@ -59,6 +83,22 @@ public partial class CommandPaletteViewModel : ObservableObject
                 Tag = app,
                 Icon = IsUrl(app.Path) ? SymbolRegular.Globe24 : SymbolRegular.WindowConsole20
             });
+        }
+
+        // Tile groups not reachable via app order (safety net)
+        foreach (var tileGroup in _settingsManager.Settings.QuickLaunchTileGroups)
+        {
+            if (emittedTileGroupIds.Add(tileGroup.Id))
+            {
+                Items.Add(new CommandPaletteItem
+                {
+                    Name = tileGroup.DisplayName,
+                    Category = "QuickLaunch",
+                    Description = $"タイル起動 ({tileGroup.AppPaths.Count}個)",
+                    Tag = tileGroup,
+                    Icon = SymbolRegular.Grid24
+                });
+            }
         }
 
         // Open tabs

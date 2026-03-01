@@ -1,3 +1,6 @@
+using System.IO;
+using System.Text.Json.Serialization;
+
 namespace WindowzTabManager;
 
 public sealed class AppSettings
@@ -20,6 +23,8 @@ public sealed class AppSettings
     public string CloseWindowsOnExit { get; set; } = "None";
 
     public List<QuickLaunchAppSetting> QuickLaunchApps { get; set; } = new();
+
+    public List<QuickLaunchTileGroupSetting> QuickLaunchTileGroups { get; set; } = new();
 
     public string TabHeaderPosition { get; set; } = "Top";
 
@@ -87,6 +92,21 @@ public sealed class StartupTileGroupSetting
     /// タイルスロット順（0=左上, 1=右上/右, 2=左下, 3=右下）に対応するアプリパス。
     /// </summary>
     public List<string> AppPaths { get; set; } = new();
+}
+
+public sealed class QuickLaunchTileGroupSetting
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>コマンドパレットに表示するグループ名。</summary>
+    public string Name { get; set; } = string.Empty;
+
+    public List<string> AppPaths { get; set; } = new();
+
+    [JsonIgnore]
+    public string DisplayName => string.IsNullOrWhiteSpace(Name)
+        ? string.Join(" + ", AppPaths.Select(p => Path.GetFileNameWithoutExtension(p)))
+        : Name;
 }
 
 public sealed class HotkeyBindingSetting

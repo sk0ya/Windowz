@@ -83,6 +83,25 @@ public partial class MainWindow : Window
             RestoreEmbeddedWindow();
             _viewModel.OpenWebTabCommand.Execute(url);
         };
+        pickerVm.TileGroupWindowsReady += (s, windows) =>
+        {
+            var addedTabs = new List<Models.TabItem>();
+            foreach (var win in windows)
+            {
+                var tab = _tabManager.AddTab(win, activate: false);
+                if (tab != null) addedTabs.Add(tab);
+            }
+            if (addedTabs.Count >= 2)
+            {
+                var tile = _tabManager.TileSpecificTabs(addedTabs);
+                if (tile?.Tabs.Count > 0)
+                    _tabManager.ActiveTab = tile.Tabs[0];
+            }
+            else if (addedTabs.Count == 1)
+            {
+                _tabManager.ActiveTab = addedTabs[0];
+            }
+        };
 
         // Wire up command palette events
         CommandPaletteControl.DataContext = App.GetService<CommandPaletteViewModel>();

@@ -25,31 +25,59 @@
             </Grid.RowDefinitions>
 
             <!-- Quick Launch -->
-            <ScrollViewer Grid.Row="0" MaxHeight="120" Margin="0,0,0,12"
+            <ScrollViewer Grid.Row="0" MaxHeight="160" Margin="0,0,0,12"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                          Visibility="{Binding HasQuickLaunchApps, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <ItemsControl ItemsSource="{Binding QuickLaunchApps}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel Orientation="Horizontal"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <ui:Button Margin="0,0,8,8" Padding="12,8"
-                                       Appearance="Secondary"
-                                       Command="{Binding DataContext.LaunchQuickAppCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                       CommandParameter="{Binding}">
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="WindowConsole20" Margin="0,0,6,0"
+                          Visibility="{Binding HasAnyQuickLaunch, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <!-- 単独アプリ -->
+                    <ItemsControl ItemsSource="{Binding QuickLaunchApps}"
+                                  Visibility="{Binding HasQuickLaunchApps, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ui:Button Margin="0,0,8,8" Padding="12,8"
+                                           Appearance="Secondary"
+                                           Command="{Binding DataContext.LaunchQuickAppCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           CommandParameter="{Binding}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="WindowConsole20" Margin="0,0,6,0"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                </StackPanel>
-                            </ui:Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                    </StackPanel>
+                                </ui:Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <!-- タイルグループ -->
+                    <ItemsControl ItemsSource="{Binding QuickLaunchTileGroups}"
+                                  Visibility="{Binding HasQuickLaunchTileGroups, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ui:Button Margin="0,0,8,8" Padding="12,8"
+                                           Appearance="Secondary"
+                                           Command="{Binding DataContext.LaunchQuickTileGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           CommandParameter="{Binding}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Grid24" Margin="0,0,6,0"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                    </StackPanel>
+                                </ui:Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </ScrollViewer>
 
             <!-- Search -->

@@ -38,6 +38,14 @@ public partial class WindowPickerViewModel : ObservableObject
     private bool _hasQuickLaunchApps;
 
     [ObservableProperty]
+    private ObservableCollection<QuickLaunchTileGroupSetting> _quickLaunchTileGroups = new();
+
+    [ObservableProperty]
+    private bool _hasQuickLaunchTileGroups;
+
+    public bool HasAnyQuickLaunch => HasQuickLaunchApps || HasQuickLaunchTileGroups;
+
+    [ObservableProperty]
     private bool _isLaunching;
 
     [ObservableProperty]
@@ -50,6 +58,7 @@ public partial class WindowPickerViewModel : ObservableObject
     public event EventHandler? Cancelled;
     public event EventHandler<string>? WebTabRequested;
     public event EventHandler? QuickLaunchSettingsRequested;
+    public event EventHandler<IReadOnlyList<WindowInfo>>? TileGroupWindowsReady;
 
     public WindowPickerViewModel(WindowManager windowManager, SettingsManager settingsManager)
     {
@@ -77,12 +86,24 @@ public partial class WindowPickerViewModel : ObservableObject
 
     private void LoadQuickLaunchApps()
     {
+        var tiledPaths = _settingsManager.Settings.QuickLaunchTileGroups
+            .SelectMany(g => g.AppPaths)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         QuickLaunchApps.Clear();
         foreach (var app in _settingsManager.Settings.QuickLaunchApps)
         {
-            QuickLaunchApps.Add(app);
+            if (!tiledPaths.Contains(app.Path))
+                QuickLaunchApps.Add(app);
         }
         HasQuickLaunchApps = QuickLaunchApps.Count > 0;
+
+        QuickLaunchTileGroups.Clear();
+        foreach (var tg in _settingsManager.Settings.QuickLaunchTileGroups)
+            QuickLaunchTileGroups.Add(tg);
+        HasQuickLaunchTileGroups = QuickLaunchTileGroups.Count > 0;
+
+        OnPropertyChanged(nameof(HasAnyQuickLaunch));
     }
 
     public void Stop()
@@ -582,6 +603,128 @@ public partial class WindowPickerViewModel : ObservableObject
         catch
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// タイルグループ内の全アプリを起動し、ウィンドウが揃ったら
+    /// <see cref="TileGroupWindowsReady"/> を発火する。
+    /// </summary>
+    [RelayCommand]
+    private async Task LaunchQuickTileGroup(QuickLaunchTileGroupSetting? group)
+    {
+        if (group == null) return;
+
+        _launchCts?.Cancel();
+        _launchCts = new CancellationTokenSource();
+        var ct = _launchCts.Token;
+
+        try
+        {
+            IsLaunching = true;
+
+            // グループに対応するアプリ設定を収集（URL・バッチは除外）
+            var apps = group.AppPaths
+                .Select(p => _settingsManager.Settings.QuickLaunchApps
+                    .FirstOrDefault(a => a.Path.Equals(p, StringComparison.OrdinalIgnoreCase)))
+                .Where(a => a != null)
+                .Cast<QuickLaunchAppSetting>()
+                .Where(a => !SettingsManager.IsUrl(a.Path))
+                .ToList();
+
+            if (apps.Count < 2) { IsLaunching = false; return; }
+
+            // 起動前のウィンドウハンドルをスナップショット
+            var existingHandles = new HashSet<IntPtr>(
+                _windowManager.EnumerateWindows().Select(w => w.Handle));
+
+            // 全アプリ起動（バッチスクリプトは除外）
+            var launchedApps = new List<QuickLaunchAppSetting>();
+            foreach (var app in apps)
+            {
+                var type = DetectLaunchType(app.Path);
+                if (type == QuickLaunchType.BatchScript) continue;
+                try
+                {
+                    Process.Start(BuildStartInfo(app, type));
+                    launchedApps.Add(app);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to launch {app.Name}: {ex.Message}");
+                }
+            }
+
+            if (launchedApps.Count < 2) { IsLaunching = false; return; }
+
+            // 全アプリのウィンドウが揃うまでポーリング（最大15秒）
+            var foundWindows = new List<WindowInfo>();
+            for (int i = 0; i < 150; i++)
+            {
+                await Task.Delay(100, ct);
+
+                var newWindows = _windowManager.EnumerateWindows()
+                    .Where(w => !existingHandles.Contains(w.Handle))
+                    .ToList();
+
+                foundWindows.Clear();
+                var usedHandles = new HashSet<IntPtr>();
+
+                foreach (var app in launchedApps)
+                {
+                    bool isExplorer = IsExplorerLaunch(app, DetectLaunchType(app.Path));
+                    WindowInfo? win;
+
+                    if (isExplorer)
+                    {
+                        win = newWindows.FirstOrDefault(w =>
+                            !usedHandles.Contains(w.Handle) && w.IsExplorer);
+                    }
+                    else
+                    {
+                        win = newWindows.FirstOrDefault(w =>
+                            !usedHandles.Contains(w.Handle) &&
+                            !string.IsNullOrWhiteSpace(w.ExecutablePath) &&
+                            PathEquals(w.ExecutablePath!, app.Path));
+                        win ??= newWindows.FirstOrDefault(w =>
+                            !usedHandles.Contains(w.Handle) &&
+                            string.Equals(w.ProcessName, TryGetProcessName(app.Path),
+                                StringComparison.OrdinalIgnoreCase));
+                    }
+
+                    if (win != null)
+                    {
+                        foundWindows.Add(win);
+                        usedHandles.Add(win.Handle);
+                    }
+                }
+
+                if (foundWindows.Count >= launchedApps.Count) break;
+            }
+
+            IsLaunching = false;
+
+            if (foundWindows.Count >= 2)
+            {
+                RefreshWindowList();
+                var windowInfos = foundWindows
+                    .Select(w => _availableWindows.FirstOrDefault(aw => aw.Handle == w.Handle) ?? w)
+                    .ToList();
+                TileGroupWindowsReady?.Invoke(this, windowInfos);
+                Cancelled?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // キャンセル済み
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to launch tile group: {ex.Message}");
+        }
+        finally
+        {
+            IsLaunching = false;
         }
     }
 }

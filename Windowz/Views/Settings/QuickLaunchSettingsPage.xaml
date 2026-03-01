@@ -4,6 +4,11 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:vm="clr-namespace:WindowzTabManager.ViewModels">
 
+    <UserControl.Resources>
+        <SolidColorBrush x:Key="TilePreviewSlotBrush" Color="#3878C5"/>
+        <SolidColorBrush x:Key="TilePreviewBgBrush"  Color="#1A2030"/>
+    </UserControl.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="16,12,16,16">
             <TextBlock Text="Quick Launch Apps" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6"
@@ -12,7 +17,7 @@
             <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
                     CornerRadius="6" Padding="12,8" Margin="0,0,0,4">
                 <StackPanel>
-                    <!-- Add new app -->
+                    <!-- 新規追加エリア -->
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -59,12 +64,28 @@
                                   ToolTip="Add" Margin="4,0,0,0"/>
                     </Grid>
 
-                    <!-- App list with inline editing -->
-                    <ItemsControl ItemsSource="{Binding QuickLaunchApps}">
-                        <ItemsControl.ItemTemplate>
+                    <!-- LaunchItems リスト（単独アプリ＋タイルグループ混在） -->
+                    <ItemsControl ItemsSource="{Binding LaunchItems}">
+                        <ItemsControl.Resources>
+
+                            <!-- 単独アプリカード -->
                             <DataTemplate DataType="{x:Type vm:QuickLaunchAppItem}">
                                 <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="4" Padding="10,6" Margin="0,0,0,4">
+                                        CornerRadius="4" Padding="10,6" Margin="0,0,0,4"
+                                        AllowDrop="True"
+                                        MouseMove="AppCard_MouseMove"
+                                        Drop="AppCard_Drop"
+                                        DragOver="AppCard_DragOver"
+                                        DragLeave="DropTarget_DragLeave">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Border.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="Run"
@@ -82,24 +103,23 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Image Source="{Binding Icon}" Width="24" Height="24"
-                                                       Margin="0,6,8,0" VerticalAlignment="Top"
-                                                       RenderOptions.BitmapScalingMode="HighQuality">
-                                                    <Image.Style>
-                                                        <Style TargetType="Image">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Image.Style>
-                                                </Image>
-                                                <ui:SymbolIcon Symbol="WindowConsole20"
+                                               Margin="0,6,8,0" VerticalAlignment="Top"
+                                               RenderOptions.BitmapScalingMode="HighQuality">
+                                            <Image.Style>
+                                                <Style TargetType="Image">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
+                                        <ui:SymbolIcon Symbol="WindowConsole20"
                                                        VerticalAlignment="Top" Margin="0,6,8,0"
                                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                        Visibility="{Binding Icon, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=invert}"/>
                                         <StackPanel Grid.Column="1">
-                                            <!-- Row 1: Name + Path -->
                                             <Grid Margin="0,0,0,4">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
@@ -113,7 +133,6 @@
                                                            TextTrimming="CharacterEllipsis"
                                                            ToolTip="{Binding Path}"/>
                                             </Grid>
-                                            <!-- Row 2: Args + Embed -->
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
@@ -131,13 +150,190 @@
                                     </Grid>
                                 </Border>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
+
+                            <!-- タイルグループカード -->
+                            <DataTemplate DataType="{x:Type vm:QuickLaunchTileGroupItem}">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,8" Margin="0,0,0,6"
+                                        MouseMove="TileGroupCard_MouseMove"
+                                        AllowDrop="True"
+                                        Drop="TileGroupCard_Drop"
+                                        DragOver="TileGroupCard_DragOver"
+                                        DragLeave="DropTarget_DragLeave">
+                                    <StackPanel>
+                                        <!-- グループ名 -->
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                       PlaceholderText="グループ名（コマンドパレット表示名）"
+                                                       FontSize="12"/>
+                                            <ui:Button Grid.Column="1"
+                                                       Content="解除"
+                                                       Appearance="Secondary"
+                                                       Margin="8,0,0,0"
+                                                       Command="{Binding DataContext.RemoveTileGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       CommandParameter="{Binding}"/>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- タイルプレビュー -->
+                                            <Border Grid.Column="0"
+                                                    Width="52" Height="36"
+                                                    Background="{StaticResource TilePreviewBgBrush}"
+                                                    CornerRadius="4"
+                                                    Margin="0,0,10,0"
+                                                    VerticalAlignment="Top">
+                                                <Canvas Width="52" Height="36">
+                                                    <Rectangle Canvas.Left="2"  Canvas.Top="2" Width="22" Height="32"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2"
+                                                               Visibility="{Binding Is2Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <Rectangle Canvas.Left="28" Canvas.Top="2" Width="22" Height="32"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2" Opacity="0.55"
+                                                               Visibility="{Binding Is2Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                                    <Rectangle Canvas.Left="2"  Canvas.Top="2" Width="22" Height="32"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2"
+                                                               Visibility="{Binding Is3Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <Rectangle Canvas.Left="28" Canvas.Top="2"  Width="22" Height="15"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2" Opacity="0.75"
+                                                               Visibility="{Binding Is3Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <Rectangle Canvas.Left="28" Canvas.Top="19" Width="22" Height="15"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2" Opacity="0.5"
+                                                               Visibility="{Binding Is3Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                                    <Rectangle Canvas.Left="2"  Canvas.Top="2"  Width="22" Height="15"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2"
+                                                               Visibility="{Binding Is4Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <Rectangle Canvas.Left="28" Canvas.Top="2"  Width="22" Height="15"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2" Opacity="0.75"
+                                                               Visibility="{Binding Is4Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <Rectangle Canvas.Left="2"  Canvas.Top="19" Width="22" Height="15"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2" Opacity="0.75"
+                                                               Visibility="{Binding Is4Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <Rectangle Canvas.Left="28" Canvas.Top="19" Width="22" Height="15"
+                                                               Fill="{StaticResource TilePreviewSlotBrush}" RadiusX="2" RadiusY="2" Opacity="0.5"
+                                                               Visibility="{Binding Is4Slot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </Canvas>
+                                            </Border>
+
+                                            <!-- グループ内アプリ一覧 -->
+                                            <StackPanel Grid.Column="1">
+                                                <ItemsControl ItemsSource="{Binding Apps}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:QuickLaunchAppItem}">
+                                                            <Border Background="{DynamicResource ControlFillColorTertiaryBrush}"
+                                                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="4"
+                                                                    Padding="4,4"
+                                                                    Margin="0,2,0,2"
+                                                                    AllowDrop="True"
+                                                                    MouseMove="AppCard_MouseMove"
+                                                                    Drop="AppCard_Drop"
+                                                                    DragOver="AppCard_DragOver"
+                                                                    DragLeave="DropTarget_DragLeave">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Style.Triggers>
+                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                <Setter Property="Background" Value="{DynamicResource ControlFillColorInputActiveBrush}"/>
+                                                                            </Trigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Image Grid.Column="0"
+                                                                           Source="{Binding Icon}"
+                                                                           Width="16" Height="16"
+                                                                           Margin="0,0,6,0"
+                                                                           VerticalAlignment="Center"
+                                                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                                                        <Image.Style>
+                                                                            <Style TargetType="Image">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Image.Style>
+                                                                    </Image>
+                                                                    <StackPanel Grid.Column="1">
+                                                                        <Grid Margin="0,0,0,2">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                                                       FontSize="12" MinWidth="80" MaxWidth="130"/>
+                                                                            <TextBlock Grid.Column="1" Text="{Binding Path}" FontSize="11"
+                                                                                       VerticalAlignment="Center" Margin="6,0,0,0"
+                                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                                       TextTrimming="CharacterEllipsis"
+                                                                                       ToolTip="{Binding Path}"/>
+                                                                        </Grid>
+                                                                        <ui:TextBox Text="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
+                                                                                   PlaceholderText="arguments" FontSize="12"/>
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                                        <ui:Button Appearance="Transparent" Padding="3,2"
+                                                                                   Icon="{ui:SymbolIcon ChevronUp20}"
+                                                                                   ToolTip="上のスロットへ"
+                                                                                   Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                   CommandParameter="{Binding}"/>
+                                                                        <ui:Button Appearance="Transparent" Padding="3,2"
+                                                                                   Icon="{ui:SymbolIcon ChevronDown20}"
+                                                                                   ToolTip="下のスロットへ"
+                                                                                   Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                   CommandParameter="{Binding}"/>
+                                                                        <ui:Button Appearance="Transparent" Padding="3,2"
+                                                                                   Icon="{ui:SymbolIcon Dismiss20}"
+                                                                                   ToolTip="グループから除去"
+                                                                                   Command="{Binding DataContext.RemoveAppCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                   CommandParameter="{Binding}"/>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <TextBlock FontSize="11" Margin="0,4,0,0"
+                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                           Visibility="{Binding CanAddApp, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    単体アプリをドロップして追加（最大4個）
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+
+                        </ItemsControl.Resources>
                     </ItemsControl>
 
                     <TextBlock Text="No apps configured"
                                Visibility="{Binding HasNoQuickLaunchApps, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                FontSize="12" HorizontalAlignment="Center" Margin="0,8"/>
+
+                    <TextBlock Text="ヒント: 青い線にドロップで並び替え。緑の枠にドロップでタイルグループ化。"
+                               FontSize="11" Margin="0,4,0,0"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
         </StackPanel>

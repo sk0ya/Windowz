@@ -79,6 +79,13 @@ public partial class MainWindow
                 }
                 break;
 
+            case QuickLaunchTileGroupSetting tileGroup:
+                // タイルグループ起動（ピッカーは開かずバックグラウンドで起動）
+                _viewModel.CloseWindowPickerCommand.Execute(null);
+                var tilePickerVm = (WindowPickerViewModel)WindowPickerControl.DataContext;
+                tilePickerVm.LaunchQuickTileGroupCommand.Execute(tileGroup);
+                break;
+
             case Models.TabItem tab:
                 _viewModel.SelectTabCommand.Execute(tab);
                 break;
