@@ -164,14 +164,12 @@ public class WindowManager
         width = Math.Max(1, width);
         height = Math.Max(1, height);
 
-        if (NativeMethods.IsIconic(handle))
-        {
-            NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE);
-        }
-        else
-        {
-            NativeMethods.ShowWindow(handle, NativeMethods.SW_SHOW);
-        }
+        // SW_SHOWNOACTIVATE: 最小化ウィンドウも復元するが、フォーカスは奪わない。
+        // SW_SHOW / SW_RESTORE はウィンドウをアクティブ化するため、
+        // タスクバークリックで Windowz を前面に出しても管理ウィンドウにフォーカスが
+        // 移ってしまう問題の原因になる。bringToFront=true の場合は後続の
+        // ForceForegroundWindow で明示的にフォーカスを渡す。
+        NativeMethods.ShowWindow(handle, NativeMethods.SW_SHOWNOACTIVATE);
 
         bool positioned = NativeMethods.SetWindowPos(
             handle,

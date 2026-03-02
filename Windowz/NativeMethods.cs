@@ -42,6 +42,7 @@ internal static class NativeMethods
     public const int SW_MINIMIZE = 6;
     public const int SW_RESTORE = 9;
     public const int SW_MAXIMIZE = 3;
+    public const int SW_SHOWNOACTIVATE = 4;
 
     public const uint RDW_INVALIDATE = 0x0001;
     public const uint RDW_ERASE = 0x0004;
