@@ -128,7 +128,18 @@ public partial class MainWindow
 
             if (_isDraggingTab)
             {
-                UpdateTabDragPosition(currentPos);
+                // コンテンツエリア上かどうかを先に判定
+                UpdateTileDropOverlay(currentPos);
+                if (_isTileDropTarget)
+                {
+                    // タイルドロップ対象：タブインジケーターは非表示
+                    TabDragIndicatorCanvas.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    // タブバー内：挿入位置インジケーターのみ更新（実際の移動はドロップ時）
+                    UpdateTabDragIndicator(currentPos);
+                }
             }
 
             return; // タブドラッグ中はウィンドウドラッグを無効化
@@ -174,9 +185,38 @@ public partial class MainWindow
 
         if (_dragTab != null)
         {
+            // ドロップ時の状態を確定してからリセット
+            var droppedTab = _dragTab;
+            var preDragActive = _preDragActiveTab;
+            var insertionPoint = _tabDragInsertionPoint;
+            var isTileDrop = _isTileDropTarget;
+
             _dragTab = null;
             _tabDragStartPoint = null;
             _isDraggingTab = false;
+            _tabDragInsertionPoint = -1;
+            _isTileDropTarget = false;
+            _preDragActiveTab = null;
+            TabDragIndicatorCanvas.Visibility = Visibility.Collapsed;
+            HideTileDropOverlay();
+            ReleaseMouseCapture();
+
+            if (isTileDrop)
+            {
+                // コンテンツエリアへドロップ → タイル作成
+                HandleTabDropOnContent(droppedTab, preDragActive);
+            }
+            else
+            {
+                // タブバー内でリリース → ドロップ位置へ並び替えてからタブを選択
+                if (insertionPoint >= 0)
+                {
+                    int moveTarget = Math.Min(insertionPoint, _tabManager.Tabs.Count - 1);
+                    _tabManager.MoveTab(droppedTab, moveTarget);
+                }
+                _viewModel.SelectTabCommand.Execute(droppedTab);
+            }
+
             return;
         }
 

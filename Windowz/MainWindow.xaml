@@ -490,6 +490,11 @@
                         IsHitTestVisible="False"
                         Background="{DynamicResource AccentFillColorDefaultBrush}" />
 
+                <!-- タブドラッグ時の挿入位置インジケーター -->
+                <Canvas x:Name="TabDragIndicatorCanvas" IsHitTestVisible="False" Panel.ZIndex="20" Visibility="Collapsed">
+                    <Border x:Name="TabDragIndicatorLine" Background="#0078D4" CornerRadius="1"/>
+                </Canvas>
+
                 <!-- Window Control Buttons -->
                 <StackPanel x:Name="WindowControlsPanel" Orientation="Horizontal">
                     <Button x:Name="MenuButton" Style="{StaticResource TitleBarButtonStyle}" Click="MenuButton_Click" ToolTip="Menu">
@@ -561,6 +566,8 @@
                 <!-- Web Tab Container -->
                 <Grid x:Name="WebTabContainer" Visibility="Collapsed"
                       UseLayoutRounding="True" SnapsToDevicePixels="True"/>
+
+
             </Grid>
 
             <!-- Window Picker Overlay -->

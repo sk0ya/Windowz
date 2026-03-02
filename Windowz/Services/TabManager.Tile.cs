@@ -111,6 +111,35 @@ public partial class TabManager
         }
     }
 
+    /// <summary>
+    /// tabToAdd を anchor タブのタイルに追加する。
+    /// anchor がタイル未参加の場合は [anchor, tabToAdd] で新規タイルを作成する。
+    /// </summary>
+    public TileLayout? AddTabToTile(TabItem tabToAdd, TabItem anchor)
+    {
+        if (tabToAdd == anchor) return null;
+
+        if (anchor.TileLayout != null)
+        {
+            var existingTile = anchor.TileLayout;
+            if (existingTile.Tabs.Count >= 4) return null;
+            if (existingTile.Tabs.Contains(tabToAdd)) return null;
+
+            // 追加タブが別タイルに属していれば先に解除
+            if (tabToAdd.TileLayout != null)
+                ReleaseTileInternal(tabToAdd.TileLayout);
+
+            existingTile.Tabs.Add(tabToAdd);
+            tabToAdd.TileLayout = existingTile;
+            ReorderTabsForTile(existingTile);
+            ActiveTab = anchor;
+            return existingTile;
+        }
+
+        // anchor がタイル未参加 → 新規タイルを作成
+        return TileSpecificTabs([anchor, tabToAdd]);
+    }
+
     private void ReleaseTileInternal(TileLayout tile)
     {
         foreach (var tab in tile.Tabs.ToList())

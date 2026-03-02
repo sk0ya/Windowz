@@ -70,12 +70,16 @@ public partial class MainWindow
             else
             {
                 _tabManager.ClearMultiSelection();
-                _viewModel.SelectTabCommand.Execute(tab);
 
-                // ドラッグ開始を追跡
+                // タブ選択はマウスアップ時まで遅延させる。
+                // これにより、コンテンツエリアへドラッグ中も元のタブが表示され続け、
+                // ドロップ先として認識できる。
+                _preDragActiveTab = _tabManager.ActiveTab;
                 _dragTab = tab;
                 _tabDragStartPoint = e.GetPosition(this);
                 _isDraggingTab = false;
+                // 管理ウィンドウ上でもマウスイベントを受信するためにキャプチャ
+                CaptureMouse();
             }
 
             e.Handled = true;
