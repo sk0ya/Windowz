@@ -9,7 +9,9 @@ public partial class MainWindow
 {
     private void MainWindow_Activated(object? sender, EventArgs e)
     {
-        BringWindowzToForeground();
+        // Activated already means Windowz owns focus. Re-running foreground
+        // promotion here on the layered window can consume the first click
+        // that activated it, leaving buttons to respond only on the second click.
 
         if (_viewModel.IsCommandPaletteOpen)
         {
@@ -81,23 +83,6 @@ public partial class MainWindow
         }
 
         return IntPtr.Zero;
-    }
-
-    private void BringWindowzToForeground()
-    {
-        if (WindowState == WindowState.Minimized)
-            WindowState = WindowState.Normal;
-
-        // Layered window (AllowsTransparency=True) activation is unreliable on click.
-        // A temporary Topmost toggle is the simplest reliable way to lift Windowz.
-        bool wasTopmost = Topmost;
-        if (!wasTopmost)
-            Topmost = true;
-
-        Activate();
-
-        if (!wasTopmost)
-            Topmost = false;
     }
 
     private IntPtr HitTestResizeBorder(IntPtr hwnd, IntPtr lParam)
