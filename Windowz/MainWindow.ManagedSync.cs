@@ -33,7 +33,6 @@ public partial class MainWindow
     private const uint EVENT_SYSTEM_MOVESIZESTART_M = 0x000A;
     private const uint EVENT_SYSTEM_MOVESIZEEND_M = 0x000B;
     private const uint EVENT_SYSTEM_MINIMIZESTART_M = 0x0016;
-    private const uint EVENT_SYSTEM_FOREGROUND_M = 0x0003;
     private const uint EVENT_OBJECT_LOCATIONCHANGE_M = 0x800B;
     private const uint WINEVENT_OUTOFCONTEXT_M = 0x0000;
     private const int OBJID_WINDOW_M = 0;
@@ -42,7 +41,6 @@ public partial class MainWindow
     private IntPtr _managedWinEventHookMoveSize;
     private IntPtr _managedWinEventHookMinimize;
     private IntPtr _managedWinEventHookLocation;
-    private IntPtr _managedWinEventHookForeground;
     private ManagedWinEventDelegate? _managedWinEventProc;
     private IntPtr _managedSyncWindowHandle;
     private bool _managedWindowMoveOrSizeInProgress;
@@ -62,8 +60,7 @@ public partial class MainWindow
         if (_managedSyncWindowHandle == handle &&
             (_managedWinEventHookMoveSize != IntPtr.Zero ||
              _managedWinEventHookMinimize != IntPtr.Zero ||
-             _managedWinEventHookLocation != IntPtr.Zero ||
-             _managedWinEventHookForeground != IntPtr.Zero))
+             _managedWinEventHookLocation != IntPtr.Zero))
         {
             return;
         }
@@ -103,16 +100,6 @@ public partial class MainWindow
             processId,
             0,
             WINEVENT_OUTOFCONTEXT_M);
-
-        // Foreground change must be global to catch transitions from other processes.
-        _managedWinEventHookForeground = SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND_M,
-            EVENT_SYSTEM_FOREGROUND_M,
-            IntPtr.Zero,
-            _managedWinEventProc,
-            0,
-            0,
-            WINEVENT_OUTOFCONTEXT_M);
     }
 
     private void RemoveManagedWindowSyncHooks()
@@ -133,12 +120,6 @@ public partial class MainWindow
         {
             UnhookWinEvent(_managedWinEventHookLocation);
             _managedWinEventHookLocation = IntPtr.Zero;
-        }
-
-        if (_managedWinEventHookForeground != IntPtr.Zero)
-        {
-            UnhookWinEvent(_managedWinEventHookForeground);
-            _managedWinEventHookForeground = IntPtr.Zero;
         }
 
         // タイル追加フックも解除してから null 化する
@@ -212,16 +193,6 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Send, () => OnTileWindowEvent(eventType, hwnd, idObject));
         }
-        else if (eventType == EVENT_SYSTEM_FOREGROUND_M && _tileWindowFractionIndex.Count > 0)
-        {
-            // タイル表示中: Windowz 自身または Web タブがフォアグラウンドになった場合も Z 順を維持する
-            Dispatcher.BeginInvoke(DispatcherPriority.Send, () =>
-            {
-                var windHwnd = new WindowInteropHelper(this).Handle;
-                if (hwnd == windHwnd && _viewModel.SelectedTab?.TileLayout != null)
-                    EnsureWindBehindManagedWindow(hwnd);
-            });
-        }
     }
 
     private void OnTileWindowEvent(uint eventType, IntPtr hwnd, int idObject)
@@ -269,9 +240,6 @@ public partial class MainWindow
                     SyncWindFromTileWindow(hwnd);
                 return;
 
-            case EVENT_SYSTEM_FOREGROUND_M:
-                EnsureWindBehindManagedWindow(hwnd);
-                return;
         }
     }
 
@@ -282,10 +250,6 @@ public partial class MainWindow
 
         switch (eventType)
         {
-            case EVENT_SYSTEM_FOREGROUND_M:
-                EnsureWindBehindManagedWindow(hwnd);
-                return;
-
             case EVENT_SYSTEM_MOVESIZESTART_M:
                 if (_isSyncingManagedWindowFromWind ||
                     Environment.TickCount64 <= _ignoreManagedWindowEventsUntilTick)
@@ -350,71 +314,6 @@ public partial class MainWindow
         }
     }
 
-    private void EnsureWindBehindManagedWindow(IntPtr hwnd)
-    {
-        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd))
-            return;
-
-        if (WindowState == WindowState.Minimized ||
-            _viewModel.IsWindowPickerOpen ||
-            _viewModel.IsCommandPaletteOpen)
-        {
-            return;
-        }
-
-        var windowzHwnd = new WindowInteropHelper(this).Handle;
-        if (windowzHwnd == IntPtr.Zero || !NativeMethods.IsWindow(windowzHwnd))
-            return;
-        // タイル表示中でなく Windowz 自身がフォアグラウンドの場合は処理不要
-        if (windowzHwnd == hwnd && _viewModel.SelectedTab?.TileLayout == null)
-            return;
-
-        // タイル表示中は全タイルウィンドウの後ろに Windowz を配置する
-        // （IsContentTabActive / IsWebTabActive のガードより前に処理する）
-        var tile = _viewModel.SelectedTab?.TileLayout;
-        if (tile != null)
-        {
-            var tileHandles = tile.Tabs
-                .Select(t => { _tabManager.TryGetExternallyManagedWindowHandle(t, out var h); return h; })
-                .Where(h => h != IntPtr.Zero && h != windowzHwnd && NativeMethods.IsWindow(h))
-                .ToList();
-
-            if (tileHandles.Count > 0)
-            {
-                // 全タイルウィンドウを順に HWND_TOP へ押し上げて Z 順を確定させる
-                // (SWP_NOREDRAW は付けない: Z 順変更後に再描画されないと視覚的にずれる)
-                foreach (var h in tileHandles)
-                {
-                    NativeMethods.SetWindowPos(
-                        h, NativeMethods.HWND_TOP, 0, 0, 0, 0,
-                        NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE |
-                        NativeMethods.SWP_NOACTIVATE);
-                }
-                // HWND_TOP を拒否したウィンドウは元の低い Z 位置に残るため、
-                // 「タブ順先頭」ではなく「実際に最も Z 順が低いタイルウィンドウ」を基準にする
-                var lowestTile = FindLowestInZOrder(tileHandles);
-                NativeMethods.SetWindowPos(
-                    windowzHwnd,
-                    lowestTile,
-                    0, 0, 0, 0,
-                    NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
-            }
-        }
-
-        // 非タイル: コンテンツ・Web タブが前面にある場合はスキップ
-        if (_viewModel.IsContentTabActive || _viewModel.IsWebTabActive)
-            return;
-
-        NativeMethods.SetWindowPos(
-            windowzHwnd,
-            hwnd,
-            0,
-            0,
-            0,
-            0,
-            NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
-    }
-
     private void HandleManagedWindowMaximize(IntPtr hwnd)
     {
         // External managed windows must not remain maximized.
@@ -446,11 +345,21 @@ public partial class MainWindow
         if (hwnd == IntPtr.Zero)
             return;
 
-        _ignoreManagedWindowEventsUntilTick = Environment.TickCount64 + Math.Max(ignoreDurationMs, ManagedWindowEventIgnoreDurationMs);
+        RunManagedWindowSync(() => NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE), ignoreDurationMs);
+    }
+
+    private void RunManagedWindowSync(Action action, int ignoreDurationMs = 0)
+    {
+        if (ignoreDurationMs > 0)
+        {
+            _ignoreManagedWindowEventsUntilTick =
+                Environment.TickCount64 + Math.Max(ignoreDurationMs, ManagedWindowEventIgnoreDurationMs);
+        }
+
         _isSyncingManagedWindowFromWind = true;
         try
         {
-            NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+            action();
         }
         finally
         {
@@ -634,26 +543,6 @@ public partial class MainWindow
         // サイズ変更時は positionOnlyUpdate: false にして Web タブも再計算させる
         if (moved)
             UpdateManagedWindowLayout(activate: false, positionOnlyUpdate: !resized);
-    }
-
-    /// <summary>
-    /// handles の中で Z 順が最も低い（最も背面にある）ウィンドウを返す。
-    /// GetWindow で全トップレベルウィンドウを上から下へ走査し、最後に見つかった
-    /// ハンドルが実際の最下位になる。HWND_TOP 拒否ウィンドウにも対応。
-    /// </summary>
-    private static IntPtr FindLowestInZOrder(IReadOnlyList<IntPtr> handles)
-    {
-        var set = new HashSet<IntPtr>(handles);
-        IntPtr lowest = handles[0]; // フォールバック
-
-        IntPtr cur = NativeMethods.GetWindow(handles[0], NativeMethods.GW_HWNDFIRST);
-        while (cur != IntPtr.Zero)
-        {
-            if (set.Contains(cur))
-                lowest = cur; // 更新し続けることで最後 = 最下位
-            cur = NativeMethods.GetWindow(cur, NativeMethods.GW_HWNDNEXT);
-        }
-        return lowest;
     }
 
     private bool TryGetManagedWindowOffsets(

@@ -151,8 +151,7 @@ public class WindowManager
         int y,
         int width,
         int height,
-        bool bringToFront,
-        IntPtr windWindowHandle = default)
+        bool bringToFront)
     {
         if (!_managedWindowStates.ContainsKey(handle)) return;
         if (!NativeMethods.IsWindow(handle))
@@ -183,26 +182,6 @@ public class WindowManager
         if (!positioned)
         {
             NativeMethods.MoveWindow(handle, x, y, width, height, true);
-        }
-
-        if (windWindowHandle != IntPtr.Zero &&
-            windWindowHandle != handle &&
-            NativeMethods.IsWindow(windWindowHandle))
-        {
-            // Keep Wind directly behind the selected managed window so the managed app
-            // stays visible above Wind's content area.
-            // SWP_NOREDRAW suppresses the Win32 repaint sequence (NCPAINT/ERASEBKGND/PAINT)
-            // that would briefly show a white border on Wind before WPF can repaint.
-            // DWM compositing updates independently so the visual result is unaffected.
-            NativeMethods.SetWindowPos(
-                windWindowHandle,
-                handle,
-                0,
-                0,
-                0,
-                0,
-                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE |
-                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOREDRAW);
         }
 
         if (bringToFront)

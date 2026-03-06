@@ -9,6 +9,8 @@ public partial class MainWindow
 {
     private void MainWindow_Activated(object? sender, EventArgs e)
     {
+        BringWindowzToForeground();
+
         if (_viewModel.IsCommandPaletteOpen)
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
@@ -21,8 +23,10 @@ public partial class MainWindow
         if (_viewModel.IsWindowPickerOpen)
             return;
 
+        // Keep Windowz as the active window when it is clicked from another app.
+        // Managed windows are still re-layered by UpdateManagedWindowLayout, but
+        // they should not steal foreground back from Windowz here.
         UpdateManagedWindowLayout(activate: false);
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => UpdateManagedWindowLayout(activate: false));
     }
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
@@ -77,6 +81,23 @@ public partial class MainWindow
         }
 
         return IntPtr.Zero;
+    }
+
+    private void BringWindowzToForeground()
+    {
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+
+        // Layered window (AllowsTransparency=True) activation is unreliable on click.
+        // A temporary Topmost toggle is the simplest reliable way to lift Windowz.
+        bool wasTopmost = Topmost;
+        if (!wasTopmost)
+            Topmost = true;
+
+        Activate();
+
+        if (!wasTopmost)
+            Topmost = false;
     }
 
     private IntPtr HitTestResizeBorder(IntPtr hwnd, IntPtr lParam)
