@@ -9,10 +9,6 @@ public partial class MainWindow
 {
     private void MainWindow_Activated(object? sender, EventArgs e)
     {
-        // Activated already means Windowz owns focus. Re-running foreground
-        // promotion here on the layered window can consume the first click
-        // that activated it, leaving buttons to respond only on the second click.
-
         if (_viewModel.IsCommandPaletteOpen)
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
@@ -25,9 +21,30 @@ public partial class MainWindow
         if (_viewModel.IsWindowPickerOpen)
             return;
 
-        // Keep Windowz as the active window when it is clicked from another app.
-        // Managed windows are still re-layered by UpdateManagedWindowLayout, but
-        // they should not steal foreground back from Windowz here.
+        bool shouldPromoteSingleManagedWindow =
+            _viewModel.SelectedTab?.TileLayout == null &&
+            !_viewModel.IsContentTabActive &&
+            !_viewModel.IsWebTabActive;
+
+        if (shouldPromoteSingleManagedWindow)
+        {
+            // Run after the activation input has settled so Windowz controls do
+            // not lose their first click while still restoring the hosted app.
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+            {
+                if (IsActive &&
+                    !_viewModel.IsWindowPickerOpen &&
+                    !_viewModel.IsCommandPaletteOpen &&
+                    _viewModel.SelectedTab?.TileLayout == null &&
+                    !_viewModel.IsContentTabActive &&
+                    !_viewModel.IsWebTabActive)
+                {
+                    UpdateManagedWindowLayout(activate: true);
+                }
+            });
+            return;
+        }
+
         UpdateManagedWindowLayout(activate: false);
     }
 
