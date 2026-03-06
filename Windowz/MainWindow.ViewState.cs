@@ -128,11 +128,8 @@ public partial class MainWindow
         {
             if (_viewModel.IsCommandPaletteOpen)
             {
-                if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
-                {
-                    if (_webTabControls.TryGetValue(_currentWebTabId.Value, out var webControl))
-                        webControl.Visibility = Visibility.Hidden;
-                }
+                HideAllWebTabs();
+                WebTabContainer.Visibility = Visibility.Collapsed;
 
                 UpdateManagedWindowLayout(activate: false);
 
@@ -147,7 +144,6 @@ public partial class MainWindow
             else
             {
                 RestoreEmbeddedWindow();
-                UpdateManagedWindowLayout(activate: true);
             }
         }
         else if (e.PropertyName == nameof(MainViewModel.SelectedTab))
@@ -167,7 +163,12 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
-                UpdateManagedWindowLayout(activate: !_viewModel.IsWindowPickerOpen);
+                if (_viewModel.IsWindowPickerOpen)
+                {
+                    HideAllWebTabs();
+                    WebTabContainer.Visibility = Visibility.Collapsed;
+                    UpdateManagedWindowLayout(activate: false);
+                }
             });
         }
     }

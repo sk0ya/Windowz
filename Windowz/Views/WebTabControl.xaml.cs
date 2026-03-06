@@ -25,14 +25,6 @@ public partial class WebTabControl : UserControl, IDisposable
         InitializeComponent();
         TabId = tabId;
         _envService = envService;
-
-        // タブが表示されたときに WebView にフォーカスを移す
-        IsVisibleChanged += (s, e) =>
-        {
-            if ((bool)e.NewValue && _isInitialized)
-                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
-                    () => WebView.Focus());
-        };
     }
 
     public async Task InitializeAsync(string url)

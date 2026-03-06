@@ -74,7 +74,9 @@ public partial class MainWindow : Window
         pickerVm.QuickLaunchSettingsRequested += (s, e) =>
         {
             _viewModel.CloseWindowPickerCommand.Execute(null);
-            RestoreEmbeddedWindow();
+            // Settings replaces the current content immediately, so restoring the
+            // previously active embedded/tiled content here only creates a
+            // transient foreground jump for WebView2.
             OpenSettingsTab("QuickLaunchSettings");
         };
         pickerVm.WebTabRequested += (s, url) =>

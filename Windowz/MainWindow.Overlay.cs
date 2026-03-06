@@ -12,50 +12,14 @@ public partial class MainWindow
     private void AddWindowButton_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.OpenWindowPickerCommand.Execute(null);
-
-        if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
-        {
-            if (_webTabControls.TryGetValue(_currentWebTabId.Value, out var webControl))
-                webControl.Visibility = Visibility.Hidden;
-        }
-
-        UpdateManagedWindowLayout(activate: false);
     }
 
     private void RestoreEmbeddedWindow()
     {
-        if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
-        {
-            if (_webTabControls.TryGetValue(_currentWebTabId.Value, out var webControl))
-                webControl.Visibility = Visibility.Visible;
-        }
+        if (_viewModel.IsWebTabActive)
+            ShowWebTab(_viewModel.ActiveWebTabId);
 
         UpdateManagedWindowLayout(activate: true);
-
-        RequestEmbeddedContentRedraw();
-    }
-
-    private void RequestEmbeddedContentRedraw()
-    {
-        // Overlay close直後の再描画ゆらぎを2回のディスパッチで吸収する。
-        Dispatcher.BeginInvoke(DispatcherPriority.Render, ForceEmbeddedContentRedraw);
-        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, ForceEmbeddedContentRedraw);
-    }
-
-    private void ForceEmbeddedContentRedraw()
-    {
-        if (_viewModel.IsCommandPaletteOpen || _viewModel.IsWindowPickerOpen)
-            return;
-
-        if (_viewModel.IsWebTabActive && _currentWebTabId.HasValue)
-        {
-            if (_webTabControls.TryGetValue(_currentWebTabId.Value, out var webControl))
-            {
-                webControl.InvalidateVisual();
-                webControl.UpdateLayout();
-            }
-            return;
-        }
     }
 
     private void OnCommandPaletteItemExecuted(object? sender, CommandPaletteItem item)
