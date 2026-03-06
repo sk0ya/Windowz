@@ -59,10 +59,23 @@ public partial class MainWindow
                 return;
 
             default:
+                if (ShouldPreserveTileLayoutState())
+                {
+                    HideManagedWindows();
+                    return;
+                }
+
                 ExitTileModeIfNeeded();
                 HideManagedWindows();
                 return;
         }
+    }
+
+    private bool ShouldPreserveTileLayoutState()
+    {
+        return _isTileModeActive &&
+               _viewModel.SelectedTab?.TileLayout != null &&
+               (_viewModel.IsWindowPickerOpen || _viewModel.IsCommandPaletteOpen);
     }
 
     private ManagedWindowLayoutTarget ResolveManagedWindowLayoutTarget()
