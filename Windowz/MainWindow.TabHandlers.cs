@@ -7,13 +7,105 @@ namespace WindowzTabManager;
 
 public partial class MainWindow
 {
+    private void WindowControlButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button button)
+            return;
+
+        var action = GetWindowControlAction(button);
+        if (action == WindowControlAction.None)
+            return;
+
+        BeginWindowControlAction(button, action);
+        e.Handled = true;
+    }
+
+    private void BeginWindowControlAction(Button button, WindowControlAction action)
+    {
+        _pendingWindowControlAction = action;
+        _pendingWindowControlButton = button;
+        _suppressManagedWindowPromotion = true;
+        CaptureMouse();
+    }
+
+    private void ClearWindowControlAction(bool keepManagedWindowPromotionSuppressed = false)
+    {
+        _pendingWindowControlAction = WindowControlAction.None;
+        _pendingWindowControlButton = null;
+
+        if (!keepManagedWindowPromotionSuppressed)
+            _suppressManagedWindowPromotion = false;
+    }
+
+    private WindowControlAction GetWindowControlAction(Button button)
+    {
+        if (ReferenceEquals(button, MenuButton))
+            return WindowControlAction.Menu;
+
+        if (ReferenceEquals(button, MinimizeButton))
+            return WindowControlAction.Minimize;
+
+        if (ReferenceEquals(button, MaximizeButton))
+            return WindowControlAction.Maximize;
+
+        if (ReferenceEquals(button, CloseButton))
+            return WindowControlAction.Close;
+
+        return WindowControlAction.None;
+    }
+
+    private void ExecuteWindowControlAction(WindowControlAction action)
+    {
+        switch (action)
+        {
+            case WindowControlAction.Menu:
+                if (MenuButton.ContextMenu != null)
+                {
+                    var menu = MenuButton.ContextMenu;
+                    menu.PlacementTarget = MenuButton;
+                    SuppressManagedWindowPromotionUntilMenuClosed(menu);
+                    menu.IsOpen = true;
+                }
+                else
+                {
+                    ClearWindowControlAction();
+                }
+                break;
+
+            case WindowControlAction.Minimize:
+                ClearWindowControlAction();
+                WindowState = WindowState.Minimized;
+                break;
+
+            case WindowControlAction.Maximize:
+                ClearWindowControlAction();
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+                break;
+
+            case WindowControlAction.Close:
+                ClearWindowControlAction();
+                Close();
+                break;
+        }
+    }
+
+    private void SuppressManagedWindowPromotionUntilMenuClosed(ContextMenu menu)
+    {
+        if (!_suppressManagedWindowPromotion)
+            return;
+
+        RoutedEventHandler? closedHandler = null;
+        closedHandler = (_, _) =>
+        {
+            menu.Closed -= closedHandler;
+            ClearWindowControlAction();
+        };
+        menu.Closed += closedHandler;
+    }
+
     private void MenuButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.ContextMenu != null)
-        {
-            btn.ContextMenu.PlacementTarget = btn;
-            btn.ContextMenu.IsOpen = true;
-        }
+        ExecuteWindowControlAction(WindowControlAction.Menu);
     }
 
     private void OpenGeneralSettings_Click(object sender, RoutedEventArgs e)

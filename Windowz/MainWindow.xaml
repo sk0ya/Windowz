@@ -497,7 +497,7 @@
 
                 <!-- Window Control Buttons -->
                 <StackPanel x:Name="WindowControlsPanel" Orientation="Horizontal">
-                    <Button x:Name="MenuButton" Style="{StaticResource TitleBarButtonStyle}" Click="MenuButton_Click" ToolTip="Menu">
+                    <Button x:Name="MenuButton" Style="{StaticResource TitleBarButtonStyle}" Click="MenuButton_Click" PreviewMouseLeftButtonDown="WindowControlButton_PreviewMouseLeftButtonDown" ToolTip="Menu">
                         <ui:SymbolIcon Symbol="Navigation24" FontSize="12"/>
                         <Button.ContextMenu>
                             <ContextMenu x:Name="MainMenu">
@@ -521,13 +521,13 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                    <Button x:Name="MinimizeButton" Style="{StaticResource TitleBarButtonStyle}" Click="MinimizeButton_Click">
+                    <Button x:Name="MinimizeButton" Style="{StaticResource TitleBarButtonStyle}" Click="MinimizeButton_Click" PreviewMouseLeftButtonDown="WindowControlButton_PreviewMouseLeftButtonDown">
                         <ui:SymbolIcon Symbol="Subtract24" FontSize="12"/>
                     </Button>
-                    <Button x:Name="MaximizeButton" Style="{StaticResource TitleBarButtonStyle}" Click="MaximizeButton_Click">
+                    <Button x:Name="MaximizeButton" Style="{StaticResource TitleBarButtonStyle}" Click="MaximizeButton_Click" PreviewMouseLeftButtonDown="WindowControlButton_PreviewMouseLeftButtonDown">
                         <ui:SymbolIcon x:Name="MaximizeIcon" Symbol="Maximize24" FontSize="12"/>
                     </Button>
-                    <Button x:Name="CloseButton" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click">
+                    <Button x:Name="CloseButton" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click" PreviewMouseLeftButtonDown="WindowControlButton_PreviewMouseLeftButtonDown">
                         <ui:SymbolIcon Symbol="Dismiss24" FontSize="12"/>
                     </Button>
                 </StackPanel>

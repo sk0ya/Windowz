@@ -33,6 +33,7 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
             {
                 if (IsActive &&
+                    !_suppressManagedWindowPromotion &&
                     !_viewModel.IsWindowPickerOpen &&
                     !_viewModel.IsCommandPaletteOpen &&
                     _viewModel.SelectedTab?.TileLayout == null &&
@@ -62,19 +63,17 @@ public partial class MainWindow
         const int HTCLIENT = 1;
         const int MA_ACTIVATE = 1;
 
-        // When the window is not active and the user clicks a UI element (e.g. close
-        // button), returning MA_ACTIVATE activates the window AND passes the click
-        // through to WPF without consuming it — so the control responds on the very
-        // first click.  We only override HTCLIENT; resize-border hits are left to
-        // default so the resize drag behaves normally.
+        // When the window is not active and the user clicks anywhere on it,
+        // return MA_ACTIVATE so that Windows both activates Windowz AND passes
+        // the click through to WPF on the very first click.  This covers all
+        // hit-test zones including the top/corner resize borders (HTTOP,
+        // HTTOPRIGHT, …) that overlap with the title-bar control buttons.
+        // Resize drags are unaffected: the resize begins via WM_NCLBUTTONDOWN
+        // after activation regardless of this return value.
         if (msg == WM_MOUSEACTIVATE)
         {
-            int hitTest = unchecked((short)(lParam.ToInt64() & 0xFFFF));
-            if (hitTest == HTCLIENT)
-            {
-                handled = true;
-                return (IntPtr)MA_ACTIVATE;
-            }
+            handled = true;
+            return (IntPtr)MA_ACTIVATE;
         }
 
         // Suppress non-client area painting. Without this, events such as
@@ -100,6 +99,18 @@ public partial class MainWindow
         }
 
         return IntPtr.Zero;
+    }
+
+    private bool IsPointInsideElement(FrameworkElement element, Point windowPoint)
+    {
+        if (!element.IsVisible || element.ActualWidth <= 0 || element.ActualHeight <= 0)
+            return false;
+
+        var topLeft = element.TranslatePoint(new Point(0, 0), this);
+        return windowPoint.X >= topLeft.X &&
+               windowPoint.X < topLeft.X + element.ActualWidth &&
+               windowPoint.Y >= topLeft.Y &&
+               windowPoint.Y < topLeft.Y + element.ActualHeight;
     }
 
     private IntPtr HitTestResizeBorder(IntPtr hwnd, IntPtr lParam)

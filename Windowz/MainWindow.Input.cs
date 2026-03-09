@@ -146,35 +146,47 @@ public partial class MainWindow
         }
 
         // ウィンドウドラッグ処理
-        if (_dragStartPoint.HasValue && !_isDragging)
+        // DragMove() はブロッキングモーダルループのため AllowsTransparency ウィンドウでは
+        // ドラッグ中に描画が更新されない。GetCursorPos で手動追跡することで
+        // Left/Top をリアルタイムに更新し、視覚的なズレをなくす。
+        if (_dragStartPoint.HasValue)
         {
-            var currentPos = e.GetPosition(this);
-            var diff = currentPos - _dragStartPoint.Value;
-
-            if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
-                Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+            if (!_isDragging)
             {
-                _isDragging = true;
-                ReleaseMouseCapture();
+                var currentPos = e.GetPosition(this);
+                var diff = currentPos - _dragStartPoint.Value;
 
-                if (WindowState == WindowState.Maximized)
+                if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
                 {
-                    // Get mouse position relative to screen
-                    var mousePos = PointToScreen(e.GetPosition(this));
+                    _isDragging = true;
+                    NativeMethods.GetCursorPos(out var cursorOrigin);
 
-                    // Calculate relative position within window (as percentage)
-                    var relativeX = e.GetPosition(this).X / ActualWidth;
+                    if (WindowState == WindowState.Maximized)
+                    {
+                        var src = PresentationSource.FromVisual(this);
+                        double dpiX = src?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+                        double dpiY = src?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+                        var relativeX = e.GetPosition(this).X / ActualWidth;
+                        WindowState = WindowState.Normal;
+                        Left = cursorOrigin.X / dpiX - Width * relativeX;
+                        Top  = cursorOrigin.Y / dpiY - 18;
+                    }
 
-                    // Restore window
-                    WindowState = WindowState.Normal;
-
-                    // Position window so mouse is at same relative position
-                    Left = mousePos.X - (Width * relativeX);
-                    Top = mousePos.Y - 18; // Half of title bar height
+                    _dragWindowOriginX  = Left;
+                    _dragWindowOriginY  = Top;
+                    _dragCursorOriginX  = cursorOrigin.X;
+                    _dragCursorOriginY  = cursorOrigin.Y;
                 }
+            }
 
-                DragMove();
-                _dragStartPoint = null;
+            if (_isDragging && NativeMethods.GetCursorPos(out var cursor))
+            {
+                var src = PresentationSource.FromVisual(this);
+                double dpiX = src?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+                double dpiY = src?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+                Left = _dragWindowOriginX + (cursor.X - _dragCursorOriginX) / dpiX;
+                Top  = _dragWindowOriginY + (cursor.Y - _dragCursorOriginY) / dpiY;
             }
         }
     }
@@ -182,6 +194,27 @@ public partial class MainWindow
     protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseLeftButtonUp(e);
+
+        if (_pendingWindowControlAction != WindowControlAction.None)
+        {
+            var action = _pendingWindowControlAction;
+            var button = _pendingWindowControlButton;
+
+            ReleaseMouseCapture();
+            ClearWindowControlAction(keepManagedWindowPromotionSuppressed: true);
+
+            if (button != null && IsPointInsideElement(button, e.GetPosition(this)))
+            {
+                ExecuteWindowControlAction(action);
+            }
+            else
+            {
+                ClearWindowControlAction();
+            }
+
+            e.Handled = true;
+            return;
+        }
 
         if (_dragTab != null)
         {

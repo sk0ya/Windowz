@@ -8,11 +8,21 @@ using WindowzTabManager.Services;
 using WindowzTabManager.ViewModels;
 using WindowzTabManager.Views;
 using WindowzTabManager.Views.Settings;
+using WpfButton = System.Windows.Controls.Button;
 
 namespace WindowzTabManager;
 
 public partial class MainWindow : Window
 {
+    private enum WindowControlAction
+    {
+        None,
+        Menu,
+        Minimize,
+        Maximize,
+        Close
+    }
+
     private readonly MainViewModel _viewModel;
     private readonly HotkeyManager _hotkeyManager;
     private readonly TabManager _tabManager;
@@ -21,6 +31,13 @@ public partial class MainWindow : Window
     private IntPtr _activeManagedWindowHandle;
     private Point? _dragStartPoint;
     private bool _isDragging;
+    private bool _suppressManagedWindowPromotion;
+    private WindowControlAction _pendingWindowControlAction;
+    private WpfButton? _pendingWindowControlButton;
+    private double _dragWindowOriginX;
+    private double _dragWindowOriginY;
+    private int _dragCursorOriginX;
+    private int _dragCursorOriginY;
     private SettingsTabsPage? _settingsTabsPage;
     private string _pendingSettingsContentKey = "GeneralSettings";
     private string _currentTabPosition = "Top";
@@ -393,16 +410,16 @@ public partial class MainWindow : Window
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e)
     {
-        WindowState = WindowState.Minimized;
+        ExecuteWindowControlAction(WindowControlAction.Minimize);
     }
 
     private void MaximizeButton_Click(object sender, RoutedEventArgs e)
     {
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        ExecuteWindowControlAction(WindowControlAction.Maximize);
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        Close();
+        ExecuteWindowControlAction(WindowControlAction.Close);
     }
 }
