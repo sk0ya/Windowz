@@ -199,7 +199,13 @@ public class WindowManager
             return;
         }
 
-        NativeMethods.ShowWindow(handle, NativeMethods.SW_MINIMIZE);
+        // 最小化・非表示にせず、Z オーダーを最背面に送るだけ。
+        // タスクバーへの表示が維持され、最小化アニメーションも発生しない。
+        NativeMethods.SetWindowPos(
+            handle,
+            NativeMethods.HWND_BOTTOM,
+            0, 0, 0, 0,
+            NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
     }
 
     public void MinimizeAllManagedWindowsExcept(IntPtr handleToKeep)
@@ -231,8 +237,9 @@ public class WindowManager
         if (!NativeMethods.IsWindow(handle))
             return;
 
-        // Managed tabs are often minimized while inactive. Restore once first so
-        // position/state restoration works reliably for shell windows (e.g. Explorer).
+        // Managed tabs are pushed to HWND_BOTTOM while inactive (not minimized).
+        // Still restore iconic/maximized state if it somehow occurred, so position
+        // restoration works reliably for shell windows (e.g. Explorer).
         if (NativeMethods.IsIconic(handle) || NativeMethods.IsZoomed(handle))
         {
             NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE);

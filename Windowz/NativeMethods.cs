@@ -27,6 +27,7 @@ internal static class NativeMethods
 
     public static readonly IntPtr HWND_TOPMOST = new(-1);
     public static readonly IntPtr HWND_TOP = IntPtr.Zero;
+    public static readonly IntPtr HWND_BOTTOM = new(1);
 
     public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOREDRAW = 0x0008;
