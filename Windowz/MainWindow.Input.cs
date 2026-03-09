@@ -218,36 +218,17 @@ public partial class MainWindow
 
         if (_dragTab != null)
         {
-            // ドロップ時の状態を確定してからリセット
-            var droppedTab = _dragTab;
-            var preDragActive = _preDragActiveTab;
-            var insertionPoint = _tabDragInsertionPoint;
-            var isTileDrop = _isTileDropTarget;
-
-            _dragTab = null;
-            _tabDragStartPoint = null;
-            _isDraggingTab = false;
-            _tabDragInsertionPoint = -1;
-            _isTileDropTarget = false;
-            _preDragActiveTab = null;
-            TabDragIndicatorCanvas.Visibility = Visibility.Collapsed;
-            HideTileDropOverlay();
-            ReleaseMouseCapture();
-
-            if (isTileDrop)
+            if (NativeMethods.GetCursorPos(out var cursorPt))
             {
-                // コンテンツエリアへドロップ → タイル作成
-                HandleTabDropOnContent(droppedTab, preDragActive);
+                CompleteTabDrag(cursorPt.X, cursorPt.Y);
             }
             else
             {
-                // タブバー内でリリース → ドロップ位置へ並び替えてからタブを選択
-                if (insertionPoint >= 0)
-                {
-                    int moveTarget = Math.Min(insertionPoint, _tabManager.Tabs.Count - 1);
-                    _tabManager.MoveTab(droppedTab, moveTarget);
-                }
-                _viewModel.SelectTabCommand.Execute(droppedTab);
+                var dropPoint = e.GetPosition(this);
+                var screenPoint = PointToScreen(dropPoint);
+                CompleteTabDrag(
+                    (int)Math.Round(screenPoint.X),
+                    (int)Math.Round(screenPoint.Y));
             }
 
             return;

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace WindowzTabManager;
 
@@ -13,6 +14,7 @@ public partial class MainWindow
     private bool _isTileDropTarget;
     private int _tabDragInsertionPoint = -1; // -1 = 未計算
     private Views.TileDragOverlayWindow? _tileOverlayWindow;
+    private DispatcherTimer? _tabDragPollTimer;
 
     /// <summary>
     /// ドラッグ中のマウス位置からタブ挿入点インジケーターを更新する。
@@ -21,6 +23,12 @@ public partial class MainWindow
     private void UpdateTabDragIndicator(Point mousePos)
     {
         if (_dragTab == null || !_isDraggingTab)
+        {
+            TabDragIndicatorCanvas.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        if (!IsPointInsideElement(TabScrollViewer, mousePos))
         {
             TabDragIndicatorCanvas.Visibility = Visibility.Collapsed;
             return;
@@ -224,5 +232,92 @@ public partial class MainWindow
         }
 
         return result;
+    }
+
+    private void StartTabDragPolling()
+    {
+        if (_tabDragPollTimer != null)
+            return;
+
+        _tabDragPollTimer = new DispatcherTimer(DispatcherPriority.Input)
+        {
+            Interval = TimeSpan.FromMilliseconds(30)
+        };
+        _tabDragPollTimer.Tick += TabDragPollTick;
+        _tabDragPollTimer.Start();
+    }
+
+    private void StopTabDragPolling()
+    {
+        if (_tabDragPollTimer == null)
+            return;
+
+        _tabDragPollTimer.Stop();
+        _tabDragPollTimer.Tick -= TabDragPollTick;
+        _tabDragPollTimer = null;
+    }
+
+    private void TabDragPollTick(object? sender, EventArgs e)
+    {
+        if (_dragTab == null)
+        {
+            StopTabDragPolling();
+            return;
+        }
+
+        if ((NativeMethods.GetAsyncKeyState(NativeMethods.VK_LBUTTON) & 0x8000) != 0)
+            return;
+
+        if (!NativeMethods.GetCursorPos(out var cursorPt))
+            return;
+
+        CompleteTabDrag(cursorPt.X, cursorPt.Y);
+    }
+
+    private void CompleteTabDrag(int screenX, int screenY)
+    {
+        if (_dragTab == null)
+            return;
+
+        var droppedTab = _dragTab;
+        var preDragActive = _preDragActiveTab;
+        var insertionPoint = _tabDragInsertionPoint;
+        var isTileDrop = _isTileDropTarget;
+        var wasDraggingTab = _isDraggingTab;
+        bool isDropInsideWindow = IsScreenPointInsideWindow(screenX, screenY);
+
+        _dragTab = null;
+        _tabDragStartPoint = null;
+        _isDraggingTab = false;
+        _tabDragInsertionPoint = -1;
+        _isTileDropTarget = false;
+        _preDragActiveTab = null;
+        TabDragIndicatorCanvas.Visibility = Visibility.Collapsed;
+        HideTileDropOverlay();
+        StopTabDragPolling();
+        ReleaseMouseCapture();
+
+        if (wasDraggingTab && !isDropInsideWindow)
+        {
+            if (ReleaseEmbeddedTab(droppedTab))
+                return;
+
+            _viewModel.SelectTabCommand.Execute(droppedTab);
+            return;
+        }
+
+        if (isTileDrop)
+        {
+            HandleTabDropOnContent(droppedTab, preDragActive);
+            return;
+        }
+
+        if (insertionPoint >= 0)
+        {
+            int moveTarget = Math.Min(insertionPoint, _tabManager.Tabs.Count - 1);
+            _tabManager.MoveTab(droppedTab, moveTarget);
+        }
+
+        _viewModel.SelectTabCommand.Execute(droppedTab);
     }
 }

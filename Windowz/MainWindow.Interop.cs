@@ -113,6 +113,25 @@ public partial class MainWindow
                windowPoint.Y < topLeft.Y + element.ActualHeight;
     }
 
+    private bool IsScreenPointInsideWindow(int screenX, int screenY)
+    {
+        if (!IsLoaded || ActualWidth <= 0 || ActualHeight <= 0)
+            return false;
+
+        try
+        {
+            var topLeft = PointToScreen(new Point(0, 0));
+            var bottomRight = PointToScreen(new Point(ActualWidth, ActualHeight));
+
+            return screenX >= topLeft.X && screenX < bottomRight.X &&
+                   screenY >= topLeft.Y && screenY < bottomRight.Y;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private IntPtr HitTestResizeBorder(IntPtr hwnd, IntPtr lParam)
     {
         const int SideResizeBorderThicknessPx = 8;

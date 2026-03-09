@@ -172,6 +172,7 @@ public partial class MainWindow
                 _isDraggingTab = false;
                 // 管理ウィンドウ上でもマウスイベントを受信するためにキャプチャ
                 CaptureMouse();
+                StartTabDragPolling();
             }
 
             e.Handled = true;
@@ -293,12 +294,7 @@ public partial class MainWindow
     private void ReleaseEmbed_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement el || el.Tag is not Models.TabItem tab) return;
-        if (tab.IsContentTab || tab.IsWebTab) return;
-
-        _tabManager.RemoveTab(tab);
-        // タイルメンバーを解除した場合、ActiveTab が変わらなくてもレイアウトを更新する
-        UpdateManagedWindowLayout(activate: true);
-        _viewModel.StatusMessage = $"タブ管理を解除: {tab.DisplayTitle}";
+        ReleaseEmbeddedTab(tab);
     }
 
     private void ToggleStartup_Click(object sender, RoutedEventArgs e)
@@ -451,5 +447,17 @@ public partial class MainWindow
                 _viewModel.StatusMessage = $"タブ名を変更: {tab.DisplayTitle}";
             }
         }
+    }
+
+    private bool ReleaseEmbeddedTab(Models.TabItem tab)
+    {
+        if (tab.IsContentTab || tab.IsWebTab || !_tabManager.IsExternallyManagedTab(tab))
+            return false;
+
+        _tabManager.RemoveTab(tab);
+        // タイルメンバーを解除した場合、ActiveTab が変わらなくてもレイアウトを更新する
+        UpdateManagedWindowLayout(activate: true);
+        _viewModel.StatusMessage = $"タブ管理を解除: {tab.DisplayTitle}";
+        return true;
     }
 }
