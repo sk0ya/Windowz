@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private double _dragWindowOriginY;
     private int _dragCursorOriginX;
     private int _dragCursorOriginY;
+    private DispatcherTimer? _dragPollTimer;
     private SettingsTabsPage? _settingsTabsPage;
     private string _pendingSettingsContentKey = "GeneralSettings";
     private string _currentTabPosition = "Top";

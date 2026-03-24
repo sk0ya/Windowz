@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace WindowzTabManager;
 
@@ -191,22 +192,28 @@ public partial class MainWindow
                     _dragWindowOriginY  = Top;
                     _dragCursorOriginX  = cursorOrigin.X;
                     _dragCursorOriginY  = cursorOrigin.Y;
+
+                    // RDP 等イベント間引き環境でも追従をスムーズにするためポーリングタイマーを起動
+                    if (_dragPollTimer == null)
+                    {
+                        _dragPollTimer = new DispatcherTimer(
+                            TimeSpan.FromMilliseconds(16),
+                            DispatcherPriority.Input,
+                            DragPollTimer_Tick,
+                            Dispatcher);
+                    }
+                    _dragPollTimer.Start();
                 }
             }
 
             if (_isDragging && NativeMethods.GetCursorPos(out var cursor))
-            {
-                var src = PresentationSource.FromVisual(this);
-                double dpiX = src?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
-                double dpiY = src?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
-                Left = _dragWindowOriginX + (cursor.X - _dragCursorOriginX) / dpiX;
-                Top  = _dragWindowOriginY + (cursor.Y - _dragCursorOriginY) / dpiY;
-            }
+                UpdateDragPosition(cursor.X, cursor.Y);
         }
     }
 
     private void EndWindowDrag()
     {
+        _dragPollTimer?.Stop();
         bool wasDragging = _isDragging;
         _dragStartPoint = null;
         _isDragging = false;
@@ -263,6 +270,53 @@ public partial class MainWindow
         {
             EndWindowDrag();
         }
+    }
+
+    private void UpdateDragPosition(int cursorX, int cursorY)
+    {
+        var (dpiX, dpiY) = GetDpiScaleForPoint(cursorX, cursorY);
+        double newLeft = _dragWindowOriginX + (cursorX - _dragCursorOriginX) / dpiX;
+        double newTop  = _dragWindowOriginY + (cursorY - _dragCursorOriginY) / dpiY;
+
+        const double epsilon = 0.5;
+        if (Math.Abs(Left - newLeft) < epsilon && Math.Abs(Top - newTop) < epsilon)
+            return;
+
+        Left = newLeft;
+        Top  = newTop;
+    }
+
+    private (double dpiX, double dpiY) GetDpiScaleForPoint(int x, int y)
+    {
+        var pt = new NativeMethods.POINT { X = x, Y = y };
+        var hMonitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        if (hMonitor != IntPtr.Zero &&
+            NativeMethods.GetDpiForMonitor(hMonitor, NativeMethods.MDT_EFFECTIVE_DPI, out uint dpiX, out uint dpiY) == 0)
+        {
+            return (dpiX / 96.0, dpiY / 96.0);
+        }
+        // フォールバック: ウィンドウが現在いるモニターの DPI
+        var src = PresentationSource.FromVisual(this);
+        return (
+            src?.CompositionTarget?.TransformToDevice.M11 ?? 1.0,
+            src?.CompositionTarget?.TransformToDevice.M22 ?? 1.0);
+    }
+
+    private void DragPollTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!_isDragging)
+        {
+            _dragPollTimer?.Stop();
+            return;
+        }
+        // マウスボタンが離されていたらドラッグ終了
+        if ((NativeMethods.GetAsyncKeyState(NativeMethods.VK_LBUTTON) & 0x8000) == 0)
+        {
+            EndWindowDrag();
+            return;
+        }
+        if (NativeMethods.GetCursorPos(out var cursor))
+            UpdateDragPosition(cursor.X, cursor.Y);
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)

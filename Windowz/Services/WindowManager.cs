@@ -8,6 +8,8 @@ public class WindowManager
 {
     private readonly HashSet<IntPtr> _excludedHandles;
     private readonly Dictionary<IntPtr, ManagedWindowState> _managedWindowStates = new();
+    // ドラッグ中の SWP_ASYNCWINDOWPOS 重複ポストを防ぐキャッシュ
+    private readonly Dictionary<IntPtr, (int x, int y, int w, int h)> _lastAsyncPos = new();
     public string? LastEmbedFailureMessage { get; private set; }
 
     public ObservableCollection<WindowInfo> AvailableWindows { get; } = new();
@@ -163,6 +165,9 @@ public class WindowManager
         width = Math.Max(1, width);
         height = Math.Max(1, height);
 
+        // ドラッグ終了後に同期 SetWindowPos で正確な位置を確定するので非同期キャッシュをクリア
+        _lastAsyncPos.Remove(handle);
+
         // SW_SHOWNOACTIVATE: 最小化ウィンドウも復元するが、フォーカスは奪わない。
         // SW_SHOW / SW_RESTORE はウィンドウをアクティブ化するため、
         // タスクバークリックで Windowz を前面に出しても管理ウィンドウにフォーカスが
@@ -199,13 +204,23 @@ public class WindowManager
         if (!_managedWindowStates.ContainsKey(handle)) return;
         if (!NativeMethods.IsWindow(handle)) return;
 
+        int w = Math.Max(1, width);
+        int h = Math.Max(1, height);
+
+        // 直前と同一座標への重複ポストをスキップしてキュー蓄積を防ぐ（RDP 環境で効果的）
+        if (_lastAsyncPos.TryGetValue(handle, out var last) &&
+            last.x == x && last.y == y && last.w == w && last.h == h)
+            return;
+
+        _lastAsyncPos[handle] = (x, y, w, h);
+
         NativeMethods.SetWindowPos(
             handle,
             IntPtr.Zero,
             x,
             y,
-            Math.Max(1, width),
-            Math.Max(1, height),
+            w,
+            h,
             NativeMethods.SWP_NOZORDER |
             NativeMethods.SWP_NOACTIVATE |
             NativeMethods.SWP_ASYNCWINDOWPOS);
@@ -254,6 +269,7 @@ public class WindowManager
             return;
 
         _managedWindowStates.Remove(handle);
+        _lastAsyncPos.Remove(handle);
 
         if (!NativeMethods.IsWindow(handle))
             return;
