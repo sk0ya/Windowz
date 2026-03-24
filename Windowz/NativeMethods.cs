@@ -277,6 +277,21 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
 
+    // ウィンドウアニメーション（最小化・復元エフェクト）の取得・設定
+    public const uint SPI_GETANIMATION = 0x0048;
+    public const uint SPI_SETANIMATION = 0x0049;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ANIMATIONINFO
+    {
+        public uint cbSize;
+        public int iMinAnimate; // 0 = アニメーション無効、1 = 有効
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref ANIMATIONINFO pvParam, uint fWinIni);
+
     // マルチモニター DPI 取得
     public const uint MONITOR_DEFAULTTONEAREST = 2;
     public const int MDT_EFFECTIVE_DPI = 0;

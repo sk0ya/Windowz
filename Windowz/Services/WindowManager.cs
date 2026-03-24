@@ -172,8 +172,8 @@ public class WindowManager
         // SW_SHOW / SW_RESTORE はウィンドウをアクティブ化するため、
         // タスクバークリックで Windowz を前面に出しても管理ウィンドウにフォーカスが
         // 移ってしまう問題の原因になる。bringToFront=true の場合は後続の
-        // ForceForegroundWindow で明示的にフォーカスを渡す。
-        NativeMethods.ShowWindow(handle, NativeMethods.SW_SHOWNOACTIVATE);
+        // ForceForegroundWindow で明示的にフォーカスを渡す。アニメーションなしで復元。
+        ShowWindowNoAnimation(handle, NativeMethods.SW_SHOWNOACTIVATE);
 
         bool positioned = NativeMethods.SetWindowPos(
             handle,
@@ -235,13 +235,9 @@ public class WindowManager
             return;
         }
 
-        // 最小化・非表示にせず、Z オーダーを最背面に送るだけ。
-        // タスクバーへの表示が維持され、最小化アニメーションも発生しない。
-        NativeMethods.SetWindowPos(
-            handle,
-            NativeMethods.HWND_BOTTOM,
-            0, 0, 0, 0,
-            NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+        // 非アクティブタブのウィンドウを最小化する。アニメーションなしで実行。
+        if (!NativeMethods.IsIconic(handle))
+            ShowWindowNoAnimation(handle, NativeMethods.SW_MINIMIZE);
     }
 
     public void MinimizeAllManagedWindowsExcept(IntPtr handleToKeep)
@@ -260,6 +256,34 @@ public class WindowManager
         {
             if (handlesToKeep.Contains(handle)) continue;
             MinimizeManagedWindow(handle);
+        }
+    }
+
+    /// <summary>
+    /// アニメーション（最小化・復元エフェクト）を一時的に無効化して ShowWindow を呼ぶ。
+    /// システム設定を取得→無効化→ShowWindow→元に戻す、の順で実行する。
+    /// </summary>
+    private static void ShowWindowNoAnimation(IntPtr handle, int nCmdShow)
+    {
+        var ai = new NativeMethods.ANIMATIONINFO
+        {
+            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.ANIMATIONINFO>()
+        };
+        NativeMethods.SystemParametersInfo(NativeMethods.SPI_GETANIMATION, ai.cbSize, ref ai, 0);
+
+        int saved = ai.iMinAnimate;
+        if (saved != 0)
+        {
+            ai.iMinAnimate = 0;
+            NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETANIMATION, ai.cbSize, ref ai, 0);
+        }
+
+        NativeMethods.ShowWindow(handle, nCmdShow);
+
+        if (saved != 0)
+        {
+            ai.iMinAnimate = saved;
+            NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETANIMATION, ai.cbSize, ref ai, 0);
         }
     }
 
