@@ -20,25 +20,31 @@ public partial class MainViewModel
 
         if (processConfigs.Count > 0)
         {
-            // Wait for windows to be created
-            await Task.Delay(1500);
+            // プロセスが起動するまで少し待つ（固定1500ms → 200ms に短縮し、
+            // 残りはポーリングループで柔軟に対応する）
+            await Task.Delay(200);
 
-            // Embed each process and track the mapping from config to tab
-            foreach (var (process, config) in processConfigs)
+            // 全プロセスのウィンドウを並列検出（順番に待つより大幅に速い）
+            var windowTasks = processConfigs
+                .Select(pair => FindStartupWindowAsync(pair.Process, pair.Config, preExistingWindows))
+                .ToList();
+            var windowInfos = await Task.WhenAll(windowTasks);
+
+            // 検出結果を元の順番でUIスレッドに反映
+            for (int i = 0; i < processConfigs.Count; i++)
             {
+                var (_, config) = processConfigs[i];
+                var windowInfo = windowInfos[i];
+                if (windowInfo == null) continue;
+
                 try
                 {
-                    var windowInfo = await FindStartupWindowAsync(process, config, preExistingWindows);
-
-                    if (windowInfo != null)
+                    var tab = _tabManager.AddTab(windowInfo, activate: false);
+                    if (tab != null)
                     {
-                        var tab = _tabManager.AddTab(windowInfo, activate: false);
-                        if (tab != null)
-                        {
-                            tab.IsLaunchedAtStartup = true;
-                            StatusMessage = $"Added: {tab.Title}";
-                            configTabPairs.Add((config, tab));
-                        }
+                        tab.IsLaunchedAtStartup = true;
+                        StatusMessage = $"Added: {tab.Title}";
+                        configTabPairs.Add((config, tab));
                     }
                 }
                 catch (Exception ex)
@@ -200,7 +206,8 @@ public partial class MainViewModel
         string? targetProcessName = TryGetProcessName(config.Path);
         IntPtr processMainWindowHandle = IntPtr.Zero;
 
-        for (int i = 0; i < 40; i++)
+        // 最大 30回 × 100ms = 3秒待機（旧: 40回 × 250ms = 10秒）
+        for (int i = 0; i < 30; i++)
         {
             try
             {
@@ -218,9 +225,12 @@ public partial class MainViewModel
                 // Ignore process query failures and fallback to window enumeration.
             }
 
-            _windowManager.RefreshWindowList();
+            // RefreshWindowList() は AvailableWindows ObservableCollection を毎回
+            // クリア・再構築するためUI更新コストが高い。
+            // 起動検出には EnumerateWindows() を直接呼び出してコストを削減する。
+            var windows = _windowManager.EnumerateWindows();
             var candidate = FindStartupCandidate(
-                _windowManager.AvailableWindows,
+                windows,
                 config.Path,
                 targetProcessName,
                 preExistingWindows,
@@ -232,12 +242,12 @@ public partial class MainViewModel
                 return candidate;
             }
 
-            await Task.Delay(250);
+            await Task.Delay(100);  // 250ms → 100ms
         }
 
-        _windowManager.RefreshWindowList();
+        var finalWindows = _windowManager.EnumerateWindows();
         var fallback = FindStartupCandidate(
-            _windowManager.AvailableWindows,
+            finalWindows,
             config.Path,
             targetProcessName,
             preExistingWindows,
