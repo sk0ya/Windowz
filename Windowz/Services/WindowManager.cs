@@ -190,6 +190,27 @@ public class WindowManager
         }
     }
 
+    /// <summary>
+    /// ドラッグ中の軽量追従用。SWP_ASYNCWINDOWPOS でポストするため UIスレッドをブロックしない。
+    /// ShowWindow・bringToFront は行わず位置・サイズのみ更新する。
+    /// </summary>
+    public void MoveManagedWindowAsync(IntPtr handle, int x, int y, int width, int height)
+    {
+        if (!_managedWindowStates.ContainsKey(handle)) return;
+        if (!NativeMethods.IsWindow(handle)) return;
+
+        NativeMethods.SetWindowPos(
+            handle,
+            IntPtr.Zero,
+            x,
+            y,
+            Math.Max(1, width),
+            Math.Max(1, height),
+            NativeMethods.SWP_NOZORDER |
+            NativeMethods.SWP_NOACTIVATE |
+            NativeMethods.SWP_ASYNCWINDOWPOS);
+    }
+
     public void MinimizeManagedWindow(IntPtr handle)
     {
         if (!_managedWindowStates.ContainsKey(handle)) return;

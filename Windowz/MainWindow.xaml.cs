@@ -374,6 +374,18 @@ public partial class MainWindow : Window
 
     private void MainWindow_LocationChanged(object? sender, EventArgs e)
     {
+        if (_isDragging)
+        {
+            // ドラッグ中は SWP_ASYNCWINDOWPOS で管理ウィンドウを非同期追従させる。
+            // 同期クロスプロセス SetWindowPos はUIスレッドをブロックしてカクつくが、
+            // 非同期版はポストして即返るため Windowz のドラッグがスムーズになる。
+            // WinEvent LOCATIONCHANGE フィードバックを抑制するため ignore tick も更新する。
+            _ignoreManagedWindowEventsUntilTick =
+                Environment.TickCount64 + ManagedWindowEventIgnoreDurationMs;
+            AsyncMoveManagedWindowsDuringDrag();
+            return;
+        }
+
         // Web タブは WPF コントロールのため、ウィンドウ移動時は自動追従する。
         // positionOnlyUpdate=true で Web タブのレイアウト再計算をスキップし、
         // WebView2 の不要な再描画（チカチカ）を防ぐ。

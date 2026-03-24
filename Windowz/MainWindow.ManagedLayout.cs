@@ -458,6 +458,57 @@ public partial class MainWindow
             UpdateManagedWindowLayout(activate: false);
     }
 
+    /// <summary>
+    /// ドラッグ中に SWP_ASYNCWINDOWPOS で管理ウィンドウを非同期追従させる。
+    /// UIスレッドをブロックしないため、ドラッグがスムーズになる。
+    /// </summary>
+    private void AsyncMoveManagedWindowsDuringDrag()
+    {
+        if (_isSyncingWindFromManagedWindow) return;
+        if (_viewModel.IsWindowPickerOpen ||
+            _viewModel.IsCommandPaletteOpen ||
+            _viewModel.IsContentTabActive ||
+            _viewModel.IsWebTabActive)
+            return;
+
+        var selectedTab = _viewModel.SelectedTab;
+        if (selectedTab == null) return;
+
+        if (!TryGetManagedWindowBounds(out var totalBounds)) return;
+
+        var tile = selectedTab.TileLayout;
+        if (tile != null && tile.Tabs.Count >= 2 && WindowState != WindowState.Minimized)
+        {
+            // タイル: 各スロットのウィンドウを非同期で移動
+            var fractions = tile.GetLayoutFractions();
+            for (int i = 0; i < tile.Tabs.Count && i < fractions.Length; i++)
+            {
+                var tab = tile.Tabs[i];
+                if (!_tabManager.TryGetExternallyManagedWindowHandle(tab, out var tileHandle) ||
+                    tileHandle == IntPtr.Zero)
+                    continue;
+
+                var f = fractions[i];
+                int left   = totalBounds.Left + (int)Math.Round(f.Left   * totalBounds.Width);
+                int top    = totalBounds.Top  + (int)Math.Round(f.Top    * totalBounds.Height);
+                int width  = Math.Max(1, (int)Math.Round(f.Width  * totalBounds.Width));
+                int height = Math.Max(1, (int)Math.Round(f.Height * totalBounds.Height));
+                _windowManager.MoveManagedWindowAsync(tileHandle, left, top, width, height);
+            }
+        }
+        else if (_viewModel.TryGetExternallyManagedWindowHandle(selectedTab, out var handle) &&
+                 handle != IntPtr.Zero)
+        {
+            // シングルウィンドウ: 非同期で移動
+            _windowManager.MoveManagedWindowAsync(
+                handle,
+                totalBounds.Left,
+                totalBounds.Top,
+                totalBounds.Width,
+                totalBounds.Height);
+        }
+    }
+
     private bool TryGetManagedWindowBounds(out NativeMethods.RECT bounds)
     {
         bounds = default;

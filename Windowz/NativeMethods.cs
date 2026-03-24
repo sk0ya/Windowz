@@ -37,6 +37,9 @@ internal static class NativeMethods
     public const uint SWP_NOCOPYBITS = 0x0100;
     public const uint SWP_NOMOVE = 0x0002;
     public const uint SWP_NOSIZE = 0x0001;
+    // 呼び出し元スレッドと対象ウィンドウのスレッドが異なる場合、
+    // 位置変更メッセージを同期送信ではなくポストする。UIスレッドのブロックを防ぐ。
+    public const uint SWP_ASYNCWINDOWPOS = 0x4000;
 
     public const int SW_SHOW = 5;
     public const int SW_HIDE = 0;

@@ -151,6 +151,15 @@ public partial class MainWindow
         // Left/Top をリアルタイムに更新し、視覚的なズレをなくす。
         if (_dragStartPoint.HasValue)
         {
+            // マウスキャプチャが別ウィンドウに奪われた場合などに MouseLeftButtonUp が
+            // 届かず _isDragging が残ることがある。GetAsyncKeyState で実際のボタン状態を
+            // チェックし、離されていたらここでドラッグを終了する。
+            if ((NativeMethods.GetAsyncKeyState(NativeMethods.VK_LBUTTON) & 0x8000) == 0)
+            {
+                EndWindowDrag();
+                return;
+            }
+
             if (!_isDragging)
             {
                 var currentPos = e.GetPosition(this);
@@ -189,6 +198,17 @@ public partial class MainWindow
                 Top  = _dragWindowOriginY + (cursor.Y - _dragCursorOriginY) / dpiY;
             }
         }
+    }
+
+    private void EndWindowDrag()
+    {
+        bool wasDragging = _isDragging;
+        _dragStartPoint = null;
+        _isDragging = false;
+        ReleaseMouseCapture();
+
+        if (wasDragging)
+            UpdateManagedWindowLayout(activate: false, positionOnlyUpdate: true);
     }
 
     protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -236,9 +256,7 @@ public partial class MainWindow
 
         if (_dragStartPoint.HasValue)
         {
-            _dragStartPoint = null;
-            _isDragging = false;
-            ReleaseMouseCapture();
+            EndWindowDrag();
         }
     }
 
