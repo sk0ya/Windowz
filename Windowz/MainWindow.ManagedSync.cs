@@ -30,6 +30,7 @@ public partial class MainWindow
     [DllImport("user32.dll")]
     private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
 
+    private const uint EVENT_SYSTEM_FOREGROUND_M = 0x0003;
     private const uint EVENT_SYSTEM_MOVESIZESTART_M = 0x000A;
     private const uint EVENT_SYSTEM_MOVESIZEEND_M = 0x000B;
     private const uint EVENT_SYSTEM_MINIMIZESTART_M = 0x0016;
@@ -48,9 +49,80 @@ public partial class MainWindow
     private bool _isSyncingWindFromManagedWindow;
     private long _ignoreManagedWindowEventsUntilTick;
 
+    private IntPtr _foregroundEventHook;
+    private ManagedWinEventDelegate? _foregroundEventProc;
+
     // タイル表示中: 非プライマリウィンドウのプロセスごとに追加したフックの一覧
     private readonly List<IntPtr> _tileExtraHooks = new();
     private readonly Dictionary<IntPtr, int> _tileWindowFractionIndex = new();
+
+    private void SetupForegroundActivationHook()
+    {
+        if (_foregroundEventHook != IntPtr.Zero)
+            return;
+
+        _foregroundEventProc = OnForegroundEventRaw;
+        _foregroundEventHook = SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND_M,
+            EVENT_SYSTEM_FOREGROUND_M,
+            IntPtr.Zero,
+            _foregroundEventProc,
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT_M);
+    }
+
+    private void RemoveForegroundActivationHook()
+    {
+        if (_foregroundEventHook != IntPtr.Zero)
+        {
+            UnhookWinEvent(_foregroundEventHook);
+            _foregroundEventHook = IntPtr.Zero;
+        }
+        _foregroundEventProc = null;
+    }
+
+    private void OnForegroundEventRaw(
+        IntPtr hWinEventHook,
+        uint eventType,
+        IntPtr hwnd,
+        int idObject,
+        int idChild,
+        uint dwEventThread,
+        uint dwmsEventTime)
+    {
+        if (hwnd == IntPtr.Zero)
+            return;
+        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnForegroundWindowChanged(hwnd));
+    }
+
+    private void OnForegroundWindowChanged(IntPtr hwnd)
+    {
+        if (_suppressManagedWindowPromotion || _isDragging)
+            return;
+
+        if (hwnd == _mainWindowHandle)
+            return;
+
+        Models.TabItem? matchingTab = null;
+        foreach (var tab in _tabManager.Tabs)
+        {
+            if (_tabManager.TryGetExternallyManagedWindowHandle(tab, out var h) && h == hwnd)
+            {
+                matchingTab = tab;
+                break;
+            }
+        }
+
+        if (matchingTab == null || matchingTab == _tabManager.ActiveTab)
+            return;
+
+        // タブを切り替え、最小化中なら Windowz も復元する
+        _tabManager.ActiveTab = matchingTab;
+
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+    }
 
     private void EnsureManagedWindowSyncHooks(IntPtr handle)
     {

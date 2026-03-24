@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private readonly TabManager _tabManager;
     private readonly WindowManager _windowManager;
     private readonly SettingsManager _settingsManager;
+    private IntPtr _mainWindowHandle;
     private IntPtr _activeManagedWindowHandle;
     private Point? _dragStartPoint;
     private bool _isDragging;
@@ -147,8 +148,12 @@ public partial class MainWindow : Window
 
         // Add WndProc hook before the window is shown so WM_NCCALCSIZE is
         // intercepted from the very first frame draw.
+        _mainWindowHandle = hwnd;
+
         var source = HwndSource.FromHwnd(hwnd);
         source?.AddHook(WndProc);
+
+        SetupForegroundActivationHook();
 
         // Remove the OS accent-color border drawn by DWM on Windows 11.
         uint noBorder = NativeMethods.DWMWA_COLOR_NONE;
@@ -336,6 +341,7 @@ public partial class MainWindow : Window
         _isWaitingForCloseTargets = false;
 
         RemoveExternalDragHooks();
+        RemoveForegroundActivationHook();
         RemoveManagedWindowSyncHooks();
 
         _closeWaitCts?.Cancel();
