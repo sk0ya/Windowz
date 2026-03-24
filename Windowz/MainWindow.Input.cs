@@ -176,10 +176,15 @@ public partial class MainWindow
                         var src = PresentationSource.FromVisual(this);
                         double dpiX = src?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
                         double dpiY = src?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
-                        var relativeX = e.GetPosition(this).X / ActualWidth;
+                        // マウスを押した位置（最大化時ウィンドウ内の論理座標）
+                        var pressPos   = _dragStartPoint ?? e.GetPosition(this);
+                        var relativeX  = pressPos.X / ActualWidth;
+                        var dragOffsetY = pressPos.Y;
+                        // RestoreBounds で復元後サイズを取得（最大化状態でも正確）
+                        var restoreWidth = RestoreBounds.Width;
                         WindowState = WindowState.Normal;
-                        Left = cursorOrigin.X / dpiX - Width * relativeX;
-                        Top  = cursorOrigin.Y / dpiY - 18;
+                        Left = cursorOrigin.X / dpiX - restoreWidth * relativeX;
+                        Top  = cursorOrigin.Y / dpiY - dragOffsetY;
                     }
 
                     _dragWindowOriginX  = Left;
