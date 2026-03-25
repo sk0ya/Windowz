@@ -87,7 +87,7 @@ dotnet run --project Windowz/WindowzTabManager.csproj
 | ショートカット | 動作 |
 |---|---|
 | `Ctrl+T` | ウィンドウピッカーを開く（タブ追加） |
-| `Ctrl+W` | アクティブなタブを閉じる |
+| `Ctrl+Shift+W` | アクティブなタブを閉じる |
 | `Ctrl+Tab` | 次のタブへ切替 |
 | `Ctrl+Shift+Tab` | 前のタブへ切替 |
 | `Ctrl+1`〜`Ctrl+9` | 番号でタブを直接切替 |

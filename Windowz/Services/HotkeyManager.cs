@@ -46,7 +46,7 @@ public class HotkeyManager : IDisposable
         {
             ("Next Tab", System.Windows.Input.ModifierKeys.Control, Key.Tab, HotkeyAction.NextTab),
             ("Previous Tab", System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift, Key.Tab, HotkeyAction.PreviousTab),
-            ("Close Tab", System.Windows.Input.ModifierKeys.Control, Key.W, HotkeyAction.CloseTab),
+            ("Close Tab", System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift, Key.W, HotkeyAction.CloseTab),
             ("Command Palette", System.Windows.Input.ModifierKeys.Alt, Key.P, HotkeyAction.CommandPalette),
         };
 

@@ -1,4 +1,6 @@
 using WindowzTabManager;
+using WindowzTabManager.Models;
+using WindowzTabManager.Services;
 using WindowzTabManager.ViewModels;
 
 namespace WindowzTabManager.Tests;
@@ -21,6 +23,7 @@ internal static class Program
         Run("ReorderTileGroupBeforeStandalone_PersistsStartupOrder", ReorderTileGroupBeforeStandalone_PersistsStartupOrder);
         Run("ReorderSameLaunchItem_ReturnsFalseAndKeepsOrder", ReorderSameLaunchItem_ReturnsFalseAndKeepsOrder);
         Run("AddAppToFullTileGroup_DoesNothing", AddAppToFullTileGroup_DoesNothing);
+        Run("GetDefaultBindings_CloseTabUsesCtrlShiftW", GetDefaultBindings_CloseTabUsesCtrlShiftW);
 
         Console.WriteLine(_failed == 0
             ? "All tests passed."
@@ -115,6 +118,17 @@ internal static class Program
             vm.LaunchItems.Select(GetLaunchItemKey),
             new[] { $"G:{a}|{b}", $"A:{c}" },
             "Launch list should show new tile and remaining standalone app.");
+    }
+
+    private static void GetDefaultBindings_CloseTabUsesCtrlShiftW()
+    {
+        var binding = HotkeyManager.GetDefaultBindings()
+            .Single(x => x.Action == HotkeyAction.CloseTab);
+
+        Assert(binding.Modifiers == (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift),
+            "Close Tab default modifiers should be Ctrl+Shift.");
+        Assert(binding.Key == System.Windows.Input.Key.W,
+            "Close Tab default key should remain W.");
     }
 
     private static void OverlayStandaloneOnTileApp_AddsToExistingTileGroup()
