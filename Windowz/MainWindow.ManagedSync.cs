@@ -487,7 +487,7 @@ public partial class MainWindow
             if (WindowState == WindowState.Maximized)
                 WindowState = WindowState.Normal;
 
-            if (!NativeMethods.GetWindowRect(_managedSyncWindowHandle, out var managedRect))
+            if (!NativeMethods.TryGetVisibleWindowRect(_managedSyncWindowHandle, out var managedRect))
                 return;
 
             if (!TryGetManagedWindowOffsets(
@@ -570,7 +570,7 @@ public partial class MainWindow
             return;
 
         if (!NativeMethods.IsWindow(hwnd)) return;
-        if (!NativeMethods.GetWindowRect(hwnd, out var rect)) return;
+        if (!NativeMethods.TryGetVisibleWindowRect(hwnd, out var rect)) return;
 
         var fractions = tile.GetLayoutFractions();
         if (fractionIdx >= fractions.Length) return;

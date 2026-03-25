@@ -155,7 +155,7 @@ public partial class MainWindow
 
     private void TryActivateManagedWindowAtCurrentBounds(IntPtr targetHandle)
     {
-        if (!NativeMethods.GetWindowRect(targetHandle, out var currentRect))
+        if (!NativeMethods.TryGetVisibleWindowRect(targetHandle, out var currentRect))
             return;
 
         ActivateManagedWindow(

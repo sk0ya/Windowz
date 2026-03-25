@@ -175,18 +175,29 @@ public class WindowManager
         // ForceForegroundWindow で明示的にフォーカスを渡す。アニメーションなしで復元。
         ShowWindowNoAnimation(handle, NativeMethods.SW_SHOWNOACTIVATE);
 
-        bool positioned = NativeMethods.SetWindowPos(
+        ConvertVisibleBoundsToWindowBounds(
             handle,
-            NativeMethods.HWND_TOP,
             x,
             y,
             width,
             height,
+            out int windowX,
+            out int windowY,
+            out int windowWidth,
+            out int windowHeight);
+
+        bool positioned = NativeMethods.SetWindowPos(
+            handle,
+            NativeMethods.HWND_TOP,
+            windowX,
+            windowY,
+            windowWidth,
+            windowHeight,
             NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
 
         if (!positioned)
         {
-            NativeMethods.MoveWindow(handle, x, y, width, height, true);
+            NativeMethods.MoveWindow(handle, windowX, windowY, windowWidth, windowHeight, true);
         }
 
         if (bringToFront)
@@ -204,23 +215,31 @@ public class WindowManager
         if (!_managedWindowStates.ContainsKey(handle)) return;
         if (!NativeMethods.IsWindow(handle)) return;
 
-        int w = Math.Max(1, width);
-        int h = Math.Max(1, height);
+        ConvertVisibleBoundsToWindowBounds(
+            handle,
+            x,
+            y,
+            width,
+            height,
+            out int windowX,
+            out int windowY,
+            out int windowWidth,
+            out int windowHeight);
 
         // 直前と同一座標への重複ポストをスキップしてキュー蓄積を防ぐ（RDP 環境で効果的）
         if (_lastAsyncPos.TryGetValue(handle, out var last) &&
-            last.x == x && last.y == y && last.w == w && last.h == h)
+            last.x == windowX && last.y == windowY && last.w == windowWidth && last.h == windowHeight)
             return;
 
-        _lastAsyncPos[handle] = (x, y, w, h);
+        _lastAsyncPos[handle] = (windowX, windowY, windowWidth, windowHeight);
 
         NativeMethods.SetWindowPos(
             handle,
             IntPtr.Zero,
-            x,
-            y,
-            w,
-            h,
+            windowX,
+            windowY,
+            windowWidth,
+            windowHeight,
             NativeMethods.SWP_NOZORDER |
             NativeMethods.SWP_NOACTIVATE |
             NativeMethods.SWP_ASYNCWINDOWPOS);
@@ -285,6 +304,41 @@ public class WindowManager
             ai.iMinAnimate = saved;
             NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETANIMATION, ai.cbSize, ref ai, 0);
         }
+    }
+
+    private static void ConvertVisibleBoundsToWindowBounds(
+        IntPtr handle,
+        int visibleX,
+        int visibleY,
+        int visibleWidth,
+        int visibleHeight,
+        out int windowX,
+        out int windowY,
+        out int windowWidth,
+        out int windowHeight)
+    {
+        int boundedWidth = Math.Max(1, visibleWidth);
+        int boundedHeight = Math.Max(1, visibleHeight);
+
+        windowX = visibleX;
+        windowY = visibleY;
+        windowWidth = boundedWidth;
+        windowHeight = boundedHeight;
+
+        if (!NativeMethods.TryGetWindowFrameInsets(
+                handle,
+                out int leftInset,
+                out int topInset,
+                out int rightInset,
+                out int bottomInset))
+        {
+            return;
+        }
+
+        windowX -= leftInset;
+        windowY -= topInset;
+        windowWidth += leftInset + rightInset;
+        windowHeight += topInset + bottomInset;
     }
 
     public void ReleaseManagedWindow(IntPtr handle)

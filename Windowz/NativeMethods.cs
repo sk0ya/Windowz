@@ -308,6 +308,9 @@ internal static class NativeMethods
     public const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;
 
     [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref uint pvAttribute, int cbAttribute);
 
     // --- Process elevation check ---
@@ -365,5 +368,51 @@ internal static class NativeMethods
         {
             CloseHandle(hProcess);
         }
+    }
+
+    public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+
+    public static bool TryGetVisibleWindowRect(IntPtr hwnd, out RECT rect)
+    {
+        rect = default;
+
+        if (hwnd == IntPtr.Zero || !IsWindow(hwnd))
+            return false;
+
+        int hr = DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            out rect,
+            Marshal.SizeOf<RECT>());
+
+        if (hr == 0 && rect.Width > 0 && rect.Height > 0)
+            return true;
+
+        return GetWindowRect(hwnd, out rect);
+    }
+
+    public static bool TryGetWindowFrameInsets(
+        IntPtr hwnd,
+        out int leftInset,
+        out int topInset,
+        out int rightInset,
+        out int bottomInset)
+    {
+        leftInset = 0;
+        topInset = 0;
+        rightInset = 0;
+        bottomInset = 0;
+
+        if (!GetWindowRect(hwnd, out var windowRect))
+            return false;
+
+        if (!TryGetVisibleWindowRect(hwnd, out var visibleRect))
+            return true;
+
+        leftInset = Math.Max(0, visibleRect.Left - windowRect.Left);
+        topInset = Math.Max(0, visibleRect.Top - windowRect.Top);
+        rightInset = Math.Max(0, windowRect.Right - visibleRect.Right);
+        bottomInset = Math.Max(0, windowRect.Bottom - visibleRect.Bottom);
+        return true;
     }
 }
