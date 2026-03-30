@@ -128,6 +128,8 @@ public partial class MainWindow
         {
             if (_viewModel.IsCommandPaletteOpen)
             {
+                Activate();
+
                 HideAllWebTabs();
                 WebTabContainer.Visibility = Visibility.Collapsed;
 
