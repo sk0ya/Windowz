@@ -56,12 +56,34 @@ public partial class MainWindow
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        const int WM_ACTIVATE = 0x0006;
         const int WM_MOUSEACTIVATE = 0x0021;
         const int WM_NCHITTEST = 0x0084;
         const int WM_NCPAINT   = 0x0085;
         const int WM_GETMINMAXINFO = 0x0024;
         const int HTCLIENT = 1;
         const int MA_ACTIVATE = 1;
+        const int WA_CLICKACTIVE = 2;
+
+        // タスクバークリックによる最小化を有効にする。
+        // 管理ウィンドウがフォアグラウンドを持っているとき、シェルは Windowz を
+        // 非フォアグラウンドと判断し、最小化ではなく WA_CLICKACTIVE でアクティブ化を試みる。
+        // カーソルが Windowz の外（タスクバー上）にある場合は最小化する。
+        if (msg == WM_ACTIVATE)
+        {
+            int activationType = unchecked((short)(wParam.ToInt64() & 0xFFFF));
+            if (activationType == WA_CLICKACTIVE && WindowState != WindowState.Minimized)
+            {
+                if (NativeMethods.GetCursorPos(out var cursorPos) &&
+                    !IsScreenPointInsideWindow(cursorPos.X, cursorPos.Y))
+                {
+                    Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
+                    {
+                        WindowState = WindowState.Minimized;
+                    });
+                }
+            }
+        }
 
         // When the window is not active and the user clicks anywhere on it,
         // return MA_ACTIVATE so that Windows both activates Windowz AND passes
@@ -121,10 +143,8 @@ public partial class MainWindow
         try
         {
             var topLeft = PointToScreen(new Point(0, 0));
-            var bottomRight = PointToScreen(new Point(ActualWidth, ActualHeight));
-
-            return screenX >= topLeft.X && screenX < bottomRight.X &&
-                   screenY >= topLeft.Y && screenY < bottomRight.Y;
+            return screenX >= topLeft.X && screenX < topLeft.X + ActualWidth &&
+                   screenY >= topLeft.Y && screenY < topLeft.Y + ActualHeight;
         }
         catch
         {
