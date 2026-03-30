@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -64,6 +65,21 @@ public partial class MainWindow
                         if (_viewModel.SelectedTab != null)
                             _viewModel.CloseTabCommand.Execute(_viewModel.SelectedTab);
                         break;
+                }
+                break;
+
+            case ApplicationLaunchItem launchItem:
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = launchItem.FilePath,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to launch {launchItem.Name}: {ex.Message}");
                 }
                 break;
 

@@ -131,6 +131,13 @@ public partial class CommandPalette : UserControl
                 ScrollToSelected();
                 e.Handled = true;
                 break;
+            case Key.Tab:
+                if ((e.KeyboardDevice.Modifiers & ModifierKeys.Shift) != 0)
+                    vm.CycleFilterBackward();
+                else
+                    vm.CycleFilterForward();
+                e.Handled = true;
+                break;
             case Key.Enter:
                 vm.ExecuteCommand.Execute(null);
                 e.Handled = true;

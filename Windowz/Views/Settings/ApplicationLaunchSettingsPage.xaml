@@ -1,0 +1,94 @@
+<UserControl x:Class="WindowzTabManager.Views.Settings.ApplicationLaunchSettingsPage"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:vm="clr-namespace:WindowzTabManager.ViewModels">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16,12,16,16">
+            <TextBlock Text="Application Launch Folders" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+
+            <TextBlock Margin="0,0,0,10" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                指定フォルダ内の .exe / .lnk / .bat / .cmd / .ps1 をコマンドパレットの「AppLaunch」タブから起動できます。
+            </TextBlock>
+
+            <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    CornerRadius="6" Padding="12,8">
+                <StackPanel>
+                    <!-- 新規追加エリア -->
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ui:TextBox x:Name="FolderPathBox"
+                                   Text="{Binding NewFolderPath, UpdateSourceTrigger=PropertyChanged}"
+                                   PlaceholderText="path to folder"
+                                   PreviewKeyDown="FolderPath_PreviewKeyDown"/>
+                        <ui:Button Grid.Column="1" Icon="{ui:SymbolIcon FolderOpen24}"
+                                  Command="{Binding BrowseFolderCommand}"
+                                  ToolTip="Browse..." Margin="4,0,0,0"/>
+                        <ui:Button Grid.Column="2" Icon="{ui:SymbolIcon Add24}"
+                                  Command="{Binding AddFolderCommand}"
+                                  ToolTip="Add" Margin="4,0,0,0"/>
+                    </Grid>
+
+                    <!-- フォルダリスト -->
+                    <ItemsControl ItemsSource="{Binding Folders}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ApplicationLaunchFolderItem}">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="4" Padding="10,6" Margin="0,0,0,4">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ui:SymbolIcon Symbol="FolderOpen24"
+                                                       Margin="0,0,8,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <StackPanel Grid.Column="1">
+                                            <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                       FontSize="12" MinWidth="100" MaxWidth="200"
+                                                       Margin="0,0,0,2"/>
+                                            <TextBlock Text="{Binding FolderPath}" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding FolderPath}"/>
+                                        </StackPanel>
+                                        <ui:Button Grid.Column="2"
+                                                   Icon="{ui:SymbolIcon Dismiss20}"
+                                                   Appearance="Transparent"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0,0,0"
+                                                   Command="{Binding DataContext.RemoveFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding}"
+                                                   ToolTip="Remove"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="No folders configured"
+                               Visibility="{Binding HasNoFolders, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               FontSize="12" HorizontalAlignment="Center" Margin="0,8"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

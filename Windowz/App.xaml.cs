@@ -39,6 +39,7 @@ public partial class App : Application
         services.AddSingleton<HotkeySettingsViewModel>();
         services.AddSingleton<StartupSettingsViewModel>();
         services.AddSingleton<QuickLaunchSettingsViewModel>();
+        services.AddSingleton<ApplicationLaunchSettingsViewModel>();
         services.AddSingleton<ProcessInfoViewModel>(sp =>
         {
             var tabManager = sp.GetRequiredService<TabManager>();
@@ -63,6 +64,7 @@ public partial class App : Application
         services.AddSingleton<Views.Settings.HotkeySettingsPage>();
         services.AddSingleton<Views.Settings.StartupSettingsPage>();
         services.AddSingleton<Views.Settings.QuickLaunchSettingsPage>();
+        services.AddSingleton<Views.Settings.ApplicationLaunchSettingsPage>();
         services.AddSingleton<Views.Settings.ProcessInfoPage>();
         services.AddSingleton<Views.Settings.SettingsTabsPage>();
     }

@@ -10,6 +10,7 @@ public partial class SettingsTabsPage : UserControl
         HotkeySettingsViewModel hotkeySettingsViewModel,
         StartupSettingsViewModel startupSettingsViewModel,
         QuickLaunchSettingsViewModel quickLaunchSettingsViewModel,
+        ApplicationLaunchSettingsViewModel applicationLaunchSettingsViewModel,
         ProcessInfoViewModel processInfoViewModel)
     {
         InitializeComponent();
@@ -18,6 +19,7 @@ public partial class SettingsTabsPage : UserControl
         HotkeyTab.Content = new HotkeySettingsPage(hotkeySettingsViewModel);
         StartupTab.Content = new StartupSettingsPage(startupSettingsViewModel);
         QuickLaunchTab.Content = new QuickLaunchSettingsPage(quickLaunchSettingsViewModel);
+        AppLaunchTab.Content = new ApplicationLaunchSettingsPage(applicationLaunchSettingsViewModel);
         ProcessInfoTab.Content = new ProcessInfoPage(processInfoViewModel);
     }
 
@@ -28,6 +30,7 @@ public partial class SettingsTabsPage : UserControl
             "HotkeySettings" => HotkeyTab,
             "StartupSettings" => StartupTab,
             "QuickLaunchSettings" => QuickLaunchTab,
+            "AppLaunchSettings" => AppLaunchTab,
             "ProcessInfo" => ProcessInfoTab,
             _ => GeneralTab
         };
@@ -56,6 +59,12 @@ public partial class SettingsTabsPage : UserControl
                  quickLaunchPage.DataContext is QuickLaunchSettingsViewModel quickLaunchVm)
         {
             quickLaunchVm.Reload();
+        }
+        else if (ReferenceEquals(SettingsTabControl.SelectedItem, AppLaunchTab) &&
+                 AppLaunchTab.Content is ApplicationLaunchSettingsPage appLaunchPage &&
+                 appLaunchPage.DataContext is ApplicationLaunchSettingsViewModel appLaunchVm)
+        {
+            appLaunchVm.Reload();
         }
         else if (ReferenceEquals(SettingsTabControl.SelectedItem, ProcessInfoTab) &&
                  ProcessInfoTab.Content is ProcessInfoPage processInfoPage &&

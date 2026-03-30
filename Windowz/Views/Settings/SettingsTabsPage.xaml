@@ -51,6 +51,7 @@
             <TabItem x:Name="HotkeyTab" Header="Hotkey"/>
             <TabItem x:Name="StartupTab" Header="Startup"/>
             <TabItem x:Name="QuickLaunchTab" Header="Quick Launch"/>
+            <TabItem x:Name="AppLaunchTab" Header="App Launch"/>
             <TabItem x:Name="ProcessInfoTab" Header="Process Info"/>
         </TabControl>
     </Grid>

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using Microsoft.Win32;
+using WindowzTabManager.Models;
 
 namespace WindowzTabManager;
 
@@ -397,6 +398,62 @@ public sealed class SettingsManager
         _settings.AutoEmbedExcludedExecutables.Remove(item);
         SaveSettings();
         AutoEmbedExclusionsChanged?.Invoke();
+    }
+
+    public ApplicationLaunchFolderSetting AddApplicationLaunchFolder(string path, string name = "")
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null!;
+
+        string folderName = string.IsNullOrWhiteSpace(name)
+            ? Path.GetFileName(Path.TrimEndingDirectorySeparator(path))
+            : name;
+
+        var folder = new ApplicationLaunchFolderSetting
+        {
+            FolderPath = path.Trim(),
+            Name = folderName
+        };
+
+        _settings.ApplicationLaunchFolders.Add(folder);
+        SaveSettings();
+        return folder;
+    }
+
+    public void RemoveApplicationLaunchFolder(ApplicationLaunchFolderSetting folder)
+    {
+        if (_settings.ApplicationLaunchFolders.Remove(folder))
+            SaveSettings();
+    }
+
+    public void SaveApplicationLaunchFolder()
+    {
+        SaveSettings();
+    }
+
+    public IEnumerable<ApplicationLaunchItem> GetApplicationLaunchItems()
+    {
+        var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { ".exe", ".bat", ".cmd", ".lnk", ".ps1" };
+
+        foreach (var folder in _settings.ApplicationLaunchFolders)
+        {
+            if (!Directory.Exists(folder.FolderPath))
+                continue;
+
+            foreach (var file in Directory.EnumerateFiles(folder.FolderPath)
+                         .OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            {
+                if (extensions.Contains(Path.GetExtension(file)))
+                {
+                    yield return new ApplicationLaunchItem
+                    {
+                        FilePath = file,
+                        Name = Path.GetFileNameWithoutExtension(file)
+                    };
+                }
+            }
+        }
     }
 
     public static bool IsUrl(string path)

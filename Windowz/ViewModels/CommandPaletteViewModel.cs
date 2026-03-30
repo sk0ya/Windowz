@@ -11,6 +11,15 @@ using static WindowzTabManager.SettingsManager;
 
 namespace WindowzTabManager.ViewModels;
 
+public partial class FilterTab : ObservableObject
+{
+    [ObservableProperty]
+    private bool _isActive;
+
+    public required string Label { get; init; }
+    public required string Key { get; init; }
+}
+
 public partial class CommandPaletteViewModel : ObservableObject
 {
     private readonly TabManager _tabManager;
@@ -19,6 +28,32 @@ public partial class CommandPaletteViewModel : ObservableObject
 
     public ObservableCollection<CommandPaletteItem> Items { get; } = new();
     public ICollectionView ItemsView => _itemsView;
+
+    public IReadOnlyList<FilterTab> Filters { get; } = new List<FilterTab>
+    {
+        new FilterTab { Label = "すべて",        Key = "All",               IsActive = true },
+        new FilterTab { Label = "操作",          Key = "Action" },
+        new FilterTab { Label = "Tab",           Key = "Tab" },
+        new FilterTab { Label = "QuickLaunch",   Key = "QuickLaunch" },
+        new FilterTab { Label = "AppLaunch",     Key = "AppLaunch" },
+    };
+
+    private string _activeFilter = "All";
+
+    public string ActiveFilter
+    {
+        get => _activeFilter;
+        private set
+        {
+            if (_activeFilter == value) return;
+            _activeFilter = value;
+            foreach (var f in Filters)
+                f.IsActive = f.Key == value;
+            _itemsView.Refresh();
+            _itemsView.MoveCurrentToFirst();
+            SelectedItem = _itemsView.CurrentItem as CommandPaletteItem;
+        }
+    }
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -40,9 +75,39 @@ public partial class CommandPaletteViewModel : ObservableObject
     public void Open()
     {
         SearchText = string.Empty;
+        _activeFilter = "All";
+        foreach (var f in Filters)
+            f.IsActive = f.Key == "All";
+
         RebuildItems();
         _itemsView.MoveCurrentToFirst();
         SelectedItem = _itemsView.CurrentItem as CommandPaletteItem;
+    }
+
+    [RelayCommand]
+    private void SetFilter(string? key)
+    {
+        if (key != null)
+            ActiveFilter = key;
+    }
+
+    public void CycleFilterForward()
+    {
+        int idx = ActiveFilterIndex();
+        ActiveFilter = Filters[(idx + 1) % Filters.Count].Key;
+    }
+
+    public void CycleFilterBackward()
+    {
+        int idx = ActiveFilterIndex();
+        ActiveFilter = Filters[(idx - 1 + Filters.Count) % Filters.Count].Key;
+    }
+
+    private int ActiveFilterIndex()
+    {
+        for (int i = 0; i < Filters.Count; i++)
+            if (Filters[i].Key == _activeFilter) return i;
+        return 0;
     }
 
     private void RebuildItems()
@@ -99,6 +164,22 @@ public partial class CommandPaletteViewModel : ObservableObject
                     Icon = SymbolRegular.Grid24
                 });
             }
+        }
+
+        // ApplicationLaunch items from configured folders
+        foreach (var launchItem in _settingsManager.GetApplicationLaunchItems())
+        {
+            bool isShortcut = Path.GetExtension(launchItem.FilePath)
+                .Equals(".lnk", StringComparison.OrdinalIgnoreCase);
+
+            Items.Add(new CommandPaletteItem
+            {
+                Name = launchItem.Name,
+                Category = "ApplicationLaunch",
+                Description = launchItem.FilePath,
+                Tag = launchItem,
+                Icon = isShortcut ? SymbolRegular.Link24 : SymbolRegular.WindowConsole20
+            });
         }
 
         // Open tabs
@@ -201,7 +282,6 @@ public partial class CommandPaletteViewModel : ObservableObject
                 Icon = SymbolRegular.ChevronDown24
             });
             Items.Add(new CommandPaletteItem
-                
             {
                 Name = "全グループを折りたたみ",
                 Category = "Group",
@@ -222,6 +302,22 @@ public partial class CommandPaletteViewModel : ObservableObject
     private bool FilterItems(object obj)
     {
         if (obj is not CommandPaletteItem item) return false;
+
+        // カテゴリフィルター
+        if (_activeFilter != "All")
+        {
+            bool categoryMatch = _activeFilter switch
+            {
+                "Action" => item.Category is "Action" or "Window" or "Group",
+                "Tab" => item.Category == "Tab",
+                "QuickLaunch" => item.Category == "QuickLaunch",
+                "AppLaunch" => item.Category == "ApplicationLaunch",
+                _ => true
+            };
+            if (!categoryMatch) return false;
+        }
+
+        // テキストフィルター
         if (string.IsNullOrWhiteSpace(SearchText)) return true;
         return item.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                (item.Description?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||

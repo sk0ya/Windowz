@@ -52,6 +52,8 @@ public sealed class AppSettings
 
     public string BackgroundColor { get; set; } = string.Empty;
 
+    public List<ApplicationLaunchFolderSetting> ApplicationLaunchFolders { get; set; } = new();
+
     public List<HotkeyBindingSetting> CustomHotkeys { get; set; } = new();
 }
 
@@ -107,6 +109,13 @@ public sealed class QuickLaunchTileGroupSetting
     public string DisplayName => string.IsNullOrWhiteSpace(Name)
         ? string.Join(" + ", AppPaths.Select(p => Path.GetFileNameWithoutExtension(p)))
         : Name;
+}
+
+public sealed class ApplicationLaunchFolderSetting
+{
+    public string FolderPath { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
 }
 
 public sealed class HotkeyBindingSetting
