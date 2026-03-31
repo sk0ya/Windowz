@@ -153,7 +153,8 @@ public class WindowManager
         int y,
         int width,
         int height,
-        bool bringToFront)
+        bool bringToFront,
+        IntPtr windWindowHandle = default)
     {
         if (!_managedWindowStates.ContainsKey(handle)) return;
         if (!NativeMethods.IsWindow(handle))
@@ -198,6 +199,24 @@ public class WindowManager
         if (!positioned)
         {
             NativeMethods.MoveWindow(handle, windowX, windowY, windowWidth, windowHeight, true);
+        }
+
+        if (windWindowHandle != IntPtr.Zero &&
+            windWindowHandle != handle &&
+            NativeMethods.IsWindow(windWindowHandle))
+        {
+            // Keep Windowz directly behind the active managed window without activating it.
+            NativeMethods.SetWindowPos(
+                windWindowHandle,
+                handle,
+                0,
+                0,
+                0,
+                0,
+                NativeMethods.SWP_NOMOVE |
+                NativeMethods.SWP_NOSIZE |
+                NativeMethods.SWP_NOACTIVATE |
+                NativeMethods.SWP_NOREDRAW);
         }
 
         if (bringToFront)

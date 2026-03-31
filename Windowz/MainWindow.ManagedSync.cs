@@ -117,14 +117,18 @@ public partial class MainWindow
         if (matchingTab == null)
             return;
 
-        if (matchingTab != _tabManager.ActiveTab)
+        bool isSameTab = matchingTab == _tabManager.ActiveTab;
+
+        if (!isSameTab)
         {
-            // タブを切り替え、後続のレイアウト更新で対象アプリを前面にそろえる。
             _tabManager.ActiveTab = matchingTab;
         }
 
         if (WindowState == WindowState.Minimized)
             WindowState = WindowState.Normal;
+
+        if (!isSameTab)
+            return;
 
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
         {
@@ -132,12 +136,14 @@ public partial class MainWindow
                 _isDragging ||
                 WindowState == WindowState.Minimized ||
                 _viewModel.IsWindowPickerOpen ||
-                _viewModel.IsCommandPaletteOpen)
+                _viewModel.IsCommandPaletteOpen ||
+                _viewModel.IsContentTabActive ||
+                _viewModel.IsWebTabActive)
             {
                 return;
             }
 
-            BringWindowzFrameToFrontNonActivated(hwnd);
+            UpdateManagedWindowLayout(activate: false);
         });
     }
 
