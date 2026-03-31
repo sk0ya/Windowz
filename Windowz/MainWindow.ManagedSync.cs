@@ -114,14 +114,31 @@ public partial class MainWindow
             }
         }
 
-        if (matchingTab == null || matchingTab == _tabManager.ActiveTab)
+        if (matchingTab == null)
             return;
 
-        // タブを切り替え、最小化中なら Windowz も復元する
-        _tabManager.ActiveTab = matchingTab;
+        if (matchingTab != _tabManager.ActiveTab)
+        {
+            // タブを切り替え、後続のレイアウト更新で対象アプリを前面にそろえる。
+            _tabManager.ActiveTab = matchingTab;
+        }
 
         if (WindowState == WindowState.Minimized)
             WindowState = WindowState.Normal;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            if (_suppressManagedWindowPromotion ||
+                _isDragging ||
+                WindowState == WindowState.Minimized ||
+                _viewModel.IsWindowPickerOpen ||
+                _viewModel.IsCommandPaletteOpen)
+            {
+                return;
+            }
+
+            BringWindowzFrameToFrontNonActivated(hwnd);
+        });
     }
 
     private void EnsureManagedWindowSyncHooks(IntPtr handle)

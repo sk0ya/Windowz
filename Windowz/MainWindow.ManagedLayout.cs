@@ -432,6 +432,66 @@ public partial class MainWindow
         }
     }
 
+    private void BringWindowzFrameToFrontNonActivated(IntPtr preferredManagedHandle = default)
+    {
+        if (_mainWindowHandle == IntPtr.Zero ||
+            !NativeMethods.IsWindow(_mainWindowHandle) ||
+            WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        NativeMethods.SetWindowPos(
+            _mainWindowHandle,
+            NativeMethods.HWND_TOP,
+            0,
+            0,
+            0,
+            0,
+            NativeMethods.SWP_NOMOVE |
+            NativeMethods.SWP_NOSIZE |
+            NativeMethods.SWP_NOACTIVATE);
+
+        var tile = _viewModel.SelectedTab?.TileLayout;
+        if (tile != null && tile.Tabs.Count >= 2)
+        {
+            var tileHandles = tile.Tabs
+                .Select(tab => _tabManager.TryGetExternallyManagedWindowHandle(tab, out var handle) ? handle : IntPtr.Zero)
+                .Where(handle => handle != IntPtr.Zero && NativeMethods.IsWindow(handle))
+                .OrderBy(handle => handle == preferredManagedHandle ? 1 : 0)
+                .ToList();
+
+            if (tileHandles.Count > 0)
+                RaiseTileWindowsAboveWindowz(_mainWindowHandle, tileHandles);
+
+            return;
+        }
+
+        IntPtr targetHandle = preferredManagedHandle;
+        if ((targetHandle == IntPtr.Zero || !NativeMethods.IsWindow(targetHandle)) &&
+            _viewModel.SelectedTab is { } selectedTab &&
+            _tabManager.TryGetExternallyManagedWindowHandle(selectedTab, out var selectedHandle) &&
+            selectedHandle != IntPtr.Zero &&
+            NativeMethods.IsWindow(selectedHandle))
+        {
+            targetHandle = selectedHandle;
+        }
+
+        if (targetHandle == IntPtr.Zero || !NativeMethods.IsWindow(targetHandle))
+            return;
+
+        NativeMethods.SetWindowPos(
+            targetHandle,
+            _mainWindowHandle,
+            0,
+            0,
+            0,
+            0,
+            NativeMethods.SWP_NOMOVE |
+            NativeMethods.SWP_NOSIZE |
+            NativeMethods.SWP_NOACTIVATE);
+    }
+
     private async Task InitWebTabForTileAsync(TabItem tab)
     {
         if (_webTabControls.ContainsKey(tab.Id))
