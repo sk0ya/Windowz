@@ -91,13 +91,30 @@ public partial class TabManager
     }
 
     /// <summary>
+    /// 指定タブだけをタイルグループから外す。残り 1 タブになる場合はタイルを解散する。
+    /// </summary>
+    public bool DetachTabFromTile(TabItem tab)
+    {
+        if (tab.TileLayout == null)
+            return false;
+
+        DetachTabFromTileInternal(tab);
+        return true;
+    }
+
+    /// <summary>
     /// タブ削除時にタイルから除去する。残り 1 タブになる場合はタイルを解散する。
     /// </summary>
     public void CleanupTileForRemovedTab(TabItem tab)
     {
-        if (tab.TileLayout == null) return;
+        DetachTabFromTile(tab);
+    }
 
+    private void DetachTabFromTileInternal(TabItem tab)
+    {
         var tile = tab.TileLayout;
+        if (tile == null) return;
+
         tab.TileLayout = null;
         tile.Tabs.Remove(tab);
 

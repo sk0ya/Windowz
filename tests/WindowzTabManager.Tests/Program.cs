@@ -23,6 +23,8 @@ internal static class Program
         Run("ReorderTileGroupBeforeStandalone_PersistsStartupOrder", ReorderTileGroupBeforeStandalone_PersistsStartupOrder);
         Run("ReorderSameLaunchItem_ReturnsFalseAndKeepsOrder", ReorderSameLaunchItem_ReturnsFalseAndKeepsOrder);
         Run("AddAppToFullTileGroup_DoesNothing", AddAppToFullTileGroup_DoesNothing);
+        Run("DetachTabFromTile_RemovesSingleTabAndKeepsRemainingGroup", DetachTabFromTile_RemovesSingleTabAndKeepsRemainingGroup);
+        Run("DetachTabFromTile_DissolvesTwoTabGroup", DetachTabFromTile_DissolvesTwoTabGroup);
         Run("GetDefaultBindings_CloseTabUsesCtrlShiftW", GetDefaultBindings_CloseTabUsesCtrlShiftW);
 
         Console.WriteLine(_failed == 0
@@ -129,6 +131,69 @@ internal static class Program
             "Close Tab default modifiers should be Ctrl+Shift.");
         Assert(binding.Key == System.Windows.Input.Key.W,
             "Close Tab default key should remain W.");
+    }
+
+    private static void DetachTabFromTile_RemovesSingleTabAndKeepsRemainingGroup()
+    {
+        using var scope = new TempSettingsScope();
+        var manager = CreateTabManager(scope.Manager);
+        try
+        {
+            var a = ContentTab("A");
+            var b = ContentTab("B");
+            var c = ContentTab("C");
+            manager.Tabs.Add(a);
+            manager.Tabs.Add(b);
+            manager.Tabs.Add(c);
+
+            var tile = manager.TileSpecificTabs(new[] { a, b, c });
+
+            var createdTile = tile
+                ?? throw new InvalidOperationException("Tile group should be created for three content tabs.");
+            Assert(manager.DetachTabFromTile(b), "Detach should return true for a tiled tab.");
+            Assert(b.TileLayout == null, "Detached tab should no longer belong to a tile group.");
+            Assert(a.TileLayout == createdTile && c.TileLayout == createdTile,
+                "Remaining tabs should stay in the same tile group.");
+            Assert(manager.TileLayouts.Contains(createdTile),
+                "Tile group should remain when it still has at least two tabs.");
+            AssertSequence(
+                createdTile.Tabs.Select(x => x.Title),
+                new[] { "A", "C" },
+                "Remaining tile order should be preserved after detaching one tab.");
+        }
+        finally
+        {
+            manager.StopCleanupTimer();
+        }
+    }
+
+    private static void DetachTabFromTile_DissolvesTwoTabGroup()
+    {
+        using var scope = new TempSettingsScope();
+        var manager = CreateTabManager(scope.Manager);
+        try
+        {
+            var a = ContentTab("A");
+            var b = ContentTab("B");
+            manager.Tabs.Add(a);
+            manager.Tabs.Add(b);
+
+            var tile = manager.TileSpecificTabs(new[] { a, b });
+
+            var createdTile = tile
+                ?? throw new InvalidOperationException("Tile group should be created for two content tabs.");
+            Assert(manager.DetachTabFromTile(b), "Detach should return true for a tiled tab.");
+            Assert(a.TileLayout == null && b.TileLayout == null,
+                "Two-tab tile group should dissolve when one tab is detached.");
+            Assert(!manager.TileLayouts.Contains(createdTile),
+                "Dissolved tile group should be removed from TabManager.");
+            Assert(createdTile.Tabs.Count == 0,
+                "Dissolved tile group should no longer keep stale tab references.");
+        }
+        finally
+        {
+            manager.StopCleanupTimer();
+        }
     }
 
     private static void OverlayStandaloneOnTileApp_AddsToExistingTileGroup()
@@ -502,6 +567,23 @@ internal static class Program
             Path = path,
             Arguments = string.Empty,
             Name = Path.GetFileNameWithoutExtension(path)
+        };
+    }
+
+    private static TabManager CreateTabManager(SettingsManager settingsManager)
+    {
+        return new TabManager(
+            new WindowManager(settingsManager),
+            settingsManager,
+            null!);
+    }
+
+    private static TabItem ContentTab(string title)
+    {
+        return new TabItem
+        {
+            Title = title,
+            ContentKey = title
         };
     }
 
