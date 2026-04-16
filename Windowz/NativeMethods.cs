@@ -208,6 +208,9 @@ internal static class NativeMethods
     public static extern bool GetCursorPos(out POINT lpPoint);
 
     [DllImport("user32.dll")]
+    public static extern IntPtr WindowFromPoint(POINT point);
+
+    [DllImport("user32.dll")]
     public static extern short GetAsyncKeyState(int vKey);
 
     [StructLayout(LayoutKind.Sequential)]

@@ -110,8 +110,8 @@ public partial class MainWindow
                 StopExternalDragPoll();
                 HideDropZone();
 
-                // ドロップ位置がタブバー上であれば埋め込む
-                if (IsCursorOverTabBar(capturedX, capturedY) && NativeMethods.IsWindow(capturedHwnd))
+                // ドロップ位置が見えているタブバー上であれば埋め込む
+                if (IsCursorOverVisibleTabBar(capturedX, capturedY) && NativeMethods.IsWindow(capturedHwnd))
                     TryEmbedExternalWindow(capturedHwnd);
             });
         }
@@ -150,7 +150,7 @@ public partial class MainWindow
 
         if (!NativeMethods.GetCursorPos(out var cursorPt)) return;
 
-        bool overTabBar = IsCursorOverTabBar(cursorPt.X, cursorPt.Y);
+        bool overTabBar = IsCursorOverVisibleTabBar(cursorPt.X, cursorPt.Y);
         if (overTabBar && !_isDropZoneActive)
             ShowDropZone();
         else if (!overTabBar && _isDropZoneActive)
@@ -159,9 +159,27 @@ public partial class MainWindow
 
     // ── Hit testing ───────────────────────────────────────────────────────
 
-    private bool IsCursorOverTabBar(int screenX, int screenY)
+    private bool IsCursorOverVisibleTabBar(int screenX, int screenY)
     {
-        if (!TabBarArea.IsLoaded) return false;
+        if (!TryGetTabBarScreenBounds(out var bounds)) return false;
+
+        return screenX >= bounds.Left && screenX < bounds.Right &&
+               screenY >= bounds.Top && screenY < bounds.Bottom &&
+               IsTabBarHeaderVisible(bounds);
+    }
+
+    private bool TryGetTabBarScreenBounds(out Rect bounds)
+    {
+        bounds = Rect.Empty;
+
+        if (!TabBarArea.IsLoaded ||
+            !IsVisible ||
+            WindowState == WindowState.Minimized ||
+            TabBarArea.ActualWidth <= 0 ||
+            TabBarArea.ActualHeight <= 0)
+        {
+            return false;
+        }
 
         try
         {
@@ -169,13 +187,59 @@ public partial class MainWindow
             var bottomRight = TabBarArea.PointToScreen(
                 new Point(TabBarArea.ActualWidth, TabBarArea.ActualHeight));
 
-            return screenX >= topLeft.X && screenX < bottomRight.X &&
-                   screenY >= topLeft.Y && screenY < bottomRight.Y;
+            bounds = new Rect(topLeft, bottomRight);
+            return bounds.Width > 0 && bounds.Height > 0;
         }
         catch
         {
             return false;
         }
+    }
+
+    private bool IsTabBarHeaderVisible(Rect bounds)
+    {
+        if (_mainWindowHandle == IntPtr.Zero ||
+            !NativeMethods.IsWindow(_mainWindowHandle) ||
+            !NativeMethods.IsWindowVisible(_mainWindowHandle) ||
+            NativeMethods.IsIconic(_mainWindowHandle))
+        {
+            return false;
+        }
+
+        int columns = bounds.Width >= bounds.Height ? 5 : 3;
+        int rows = bounds.Width >= bounds.Height ? 3 : 5;
+
+        // WindowFromPoint でタブバーの実表示をサンプリングする。
+        // 座標だけで判定すると、Windowz が背面に隠れていてもタブ化されてしまう。
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                double x = bounds.Left + bounds.Width * (column + 0.5) / columns;
+                double y = bounds.Top + bounds.Height * (row + 0.5) / rows;
+
+                if (IsWindowzTopLevelAtScreenPoint(x, y))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsWindowzTopLevelAtScreenPoint(double screenX, double screenY)
+    {
+        var point = new NativeMethods.POINT
+        {
+            X = (int)Math.Floor(screenX),
+            Y = (int)Math.Floor(screenY)
+        };
+
+        var hwnd = NativeMethods.WindowFromPoint(point);
+        if (hwnd == IntPtr.Zero)
+            return false;
+
+        var root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
+        return (root == IntPtr.Zero ? hwnd : root) == _mainWindowHandle;
     }
 
     // ── Drop zone UI ──────────────────────────────────────────────────────
