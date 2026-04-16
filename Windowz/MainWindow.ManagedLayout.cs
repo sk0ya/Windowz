@@ -119,6 +119,7 @@ public partial class MainWindow
     {
         MinimizeManagedWindowsExcept(IntPtr.Zero);
         RemoveManagedWindowSyncHooks();
+        HideTileSplitterOverlay();
         _activeManagedWindowHandle = IntPtr.Zero;
     }
 
@@ -216,6 +217,7 @@ public partial class MainWindow
         ApplyTileWebLayout(members.WebMembers, fractions, positionOnlyUpdate);
         ApplyTileContentLayout(members.ContentMembers, fractions);
         ApplyTileWindowLayout(members, fractions, activate);
+        UpdateTileSplitterOverlay(tile, fractions);
     }
 
     private TileLayoutMembers ClassifyTileMembers(TileLayout tile, int fractionCount)
@@ -285,13 +287,10 @@ public partial class MainWindow
                 var fraction = fractions[index];
                 control.HorizontalAlignment = HorizontalAlignment.Left;
                 control.VerticalAlignment = VerticalAlignment.Top;
-                control.Width = Math.Max(1, fraction.Width * containerWidth);
-                control.Height = Math.Max(1, fraction.Height * containerHeight);
-                control.Margin = new Thickness(
-                    fraction.Left * containerWidth,
-                    fraction.Top * containerHeight,
-                    0,
-                    0);
+                var bounds = GetTileSlotBoundsDip(fraction, containerWidth, containerHeight);
+                control.Width = Math.Max(1, bounds.Width);
+                control.Height = Math.Max(1, bounds.Height);
+                control.Margin = new Thickness(bounds.Left, bounds.Top, 0, 0);
                 control.Visibility = Visibility.Visible;
             }
         }
@@ -323,13 +322,10 @@ public partial class MainWindow
 
         ContentTabContainer.HorizontalAlignment = HorizontalAlignment.Left;
         ContentTabContainer.VerticalAlignment = VerticalAlignment.Top;
-        ContentTabContainer.Width = Math.Max(1, fraction.Width * containerWidth);
-        ContentTabContainer.Height = Math.Max(1, fraction.Height * containerHeight);
-        ContentTabContainer.Margin = new Thickness(
-            fraction.Left * containerWidth,
-            fraction.Top * containerHeight,
-            0,
-            0);
+        var bounds = GetTileSlotBoundsDip(fraction, containerWidth, containerHeight);
+        ContentTabContainer.Width = Math.Max(1, bounds.Width);
+        ContentTabContainer.Height = Math.Max(1, bounds.Height);
+        ContentTabContainer.Margin = new Thickness(bounds.Left, bounds.Top, 0, 0);
         ShowContentTab(contentTab.ContentKey);
         ContentTabContainer.Visibility = Visibility.Visible;
     }
@@ -366,17 +362,14 @@ public partial class MainWindow
             foreach (var (tab, handle, index) in orderedWindowMembers)
             {
                 var fraction = fractions[index];
-                int left = totalBounds.Left + (int)Math.Round(fraction.Left * totalBounds.Width);
-                int top = totalBounds.Top + (int)Math.Round(fraction.Top * totalBounds.Height);
-                int width = Math.Max(1, (int)Math.Round(fraction.Width * totalBounds.Width));
-                int height = Math.Max(1, (int)Math.Round(fraction.Height * totalBounds.Height));
+                var bounds = GetTileSlotBoundsPx(fraction, totalBounds);
 
                 _windowManager.ActivateManagedWindow(
                     handle,
-                    left,
-                    top,
-                    width,
-                    height,
+                    bounds.Left,
+                    bounds.Top,
+                    bounds.Width,
+                    bounds.Height,
                     bringSelectedWindowToFront && selectedTab == tab && handle == primaryHandle,
                     _mainWindowHandle);
             }
@@ -490,12 +483,13 @@ public partial class MainWindow
                     tileHandle == IntPtr.Zero)
                     continue;
 
-                var f = fractions[i];
-                int left   = totalBounds.Left + (int)Math.Round(f.Left   * totalBounds.Width);
-                int top    = totalBounds.Top  + (int)Math.Round(f.Top    * totalBounds.Height);
-                int width  = Math.Max(1, (int)Math.Round(f.Width  * totalBounds.Width));
-                int height = Math.Max(1, (int)Math.Round(f.Height * totalBounds.Height));
-                _windowManager.MoveManagedWindowAsync(tileHandle, left, top, width, height);
+                var bounds = GetTileSlotBoundsPx(fractions[i], totalBounds);
+                _windowManager.MoveManagedWindowAsync(
+                    tileHandle,
+                    bounds.Left,
+                    bounds.Top,
+                    bounds.Width,
+                    bounds.Height);
             }
         }
         else if (_viewModel.TryGetExternallyManagedWindowHandle(selectedTab, out var handle) &&

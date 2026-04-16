@@ -182,6 +182,8 @@ public partial class MainWindow
     /// </summary>
     private void ResetTileViewState()
     {
+        HideTileSplitterOverlay();
+
         // 全 Web タブコントロールのタイル時サイズをリセットして非表示にする
         foreach (var ctrl in _webTabControls.Values)
         {

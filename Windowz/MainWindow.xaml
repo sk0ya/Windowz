@@ -567,6 +567,14 @@
                 <Grid x:Name="WebTabContainer" Visibility="Collapsed"
                       UseLayoutRounding="True" SnapsToDevicePixels="True"/>
 
+                <!-- Tile splitter overlay. The tile panes leave a small gap so this remains clickable above Windowz. -->
+                <Canvas x:Name="TileSplitterCanvas"
+                        Panel.ZIndex="40"
+                        Visibility="Collapsed"
+                        ClipToBounds="True"
+                        Background="Transparent"
+                        UseLayoutRounding="True"
+                        SnapsToDevicePixels="True"/>
 
             </Grid>
 

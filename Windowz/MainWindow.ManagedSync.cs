@@ -104,16 +104,7 @@ public partial class MainWindow
         if (hwnd == _mainWindowHandle)
             return;
 
-        Models.TabItem? matchingTab = null;
-        foreach (var tab in _tabManager.Tabs)
-        {
-            if (_tabManager.TryGetExternallyManagedWindowHandle(tab, out var h) && h == hwnd)
-            {
-                matchingTab = tab;
-                break;
-            }
-        }
-
+        var matchingTab = FindExternallyManagedTabByHandle(hwnd);
         if (matchingTab == null)
             return;
 
@@ -145,6 +136,17 @@ public partial class MainWindow
 
             UpdateManagedWindowLayout(activate: false);
         });
+    }
+
+    private Models.TabItem? FindExternallyManagedTabByHandle(IntPtr hwnd)
+    {
+        foreach (var tab in _tabManager.Tabs)
+        {
+            if (_tabManager.TryGetExternallyManagedWindowHandle(tab, out var handle) && handle == hwnd)
+                return tab;
+        }
+
+        return null;
     }
 
     private void EnsureManagedWindowSyncHooks(IntPtr handle)
@@ -308,6 +310,11 @@ public partial class MainWindow
                     Environment.TickCount64 <= _ignoreManagedWindowEventsUntilTick)
                     return;
                 _managedWindowMoveOrSizeInProgress = false;
+                if (NativeMethods.IsZoomed(hwnd))
+                {
+                    HandleManagedWindowMaximize(hwnd);
+                    return;
+                }
                 SyncWindFromTileWindow(hwnd);
                 return;
 
@@ -411,6 +418,9 @@ public partial class MainWindow
 
     private void HandleManagedWindowMaximize(IntPtr hwnd)
     {
+        if (TryDetachMaximizedTileWindow(hwnd))
+            return;
+
         // External managed windows must not remain maximized.
         // Immediately cancel their maximize, then toggle Windowz maximize state.
         RestoreManagedWindowSilently(hwnd, ManagedWindowEventIgnoreDurationMs * 3);
@@ -433,6 +443,44 @@ public partial class MainWindow
             UpdateManagedWindowLayout(activate: false);
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => UpdateManagedWindowLayout(activate: false));
         });
+    }
+
+    private bool TryDetachMaximizedTileWindow(IntPtr hwnd)
+    {
+        var tab = FindExternallyManagedTabByHandle(hwnd);
+        if (tab?.TileLayout == null)
+            return false;
+
+        // タイル中は対象タブだけを外し、Windowz 最大化状態の単独表示に切り替える。
+        RestoreManagedWindowSilently(hwnd, ManagedWindowEventIgnoreDurationMs * 3);
+
+        if (!_tabManager.DetachTabFromTile(tab))
+            return false;
+
+        _managedWindowMoveOrSizeInProgress = false;
+        RemoveTileExtraHooks();
+
+        _tabManager.ActiveTab = tab;
+
+        _isSyncingWindFromManagedWindow = true;
+        try
+        {
+            if (WindowState != WindowState.Maximized)
+                WindowState = WindowState.Maximized;
+        }
+        finally
+        {
+            _isSyncingWindFromManagedWindow = false;
+        }
+
+        _viewModel.StatusMessage = $"タイル表示を解除: {tab.DisplayTitle}";
+
+        UpdateManagedWindowLayout(activate: true);
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            () => UpdateManagedWindowLayout(activate: false));
+
+        return true;
     }
 
     private void RestoreManagedWindowSilently(IntPtr hwnd, int ignoreDurationMs = ManagedWindowEventIgnoreDurationMs)
@@ -537,19 +585,37 @@ public partial class MainWindow
                 if (primaryFracIdx < fractions.Length)
                 {
                     var f = fractions[primaryFracIdx];
-                    nextLeft -= f.Left * WindowHostContainer.ActualWidth  * dpiScaleX;
-                    nextTop  -= f.Top  * WindowHostContainer.ActualHeight * dpiScaleY;
+                    GetTileSlotGapInsets(
+                        f,
+                        TileSplitterGapDip * dpiScaleX,
+                        TileSplitterGapDip * dpiScaleY,
+                        out double leftGap,
+                        out double topGap,
+                        out double rightGap,
+                        out double bottomGap);
+
+                    double nextContainerWidthPx = WindowHostContainer.ActualWidth * dpiScaleX;
+                    double nextContainerHeightPx = WindowHostContainer.ActualHeight * dpiScaleY;
+
+                    if (f.Width > 0)
+                        nextContainerWidthPx = (managedRect.Width + leftGap + rightGap) / f.Width;
+
+                    if (f.Height > 0)
+                        nextContainerHeightPx = (managedRect.Height + topGap + bottomGap) / f.Height;
+
+                    nextLeft -= leftGap + f.Left * nextContainerWidthPx;
+                    nextTop  -= topGap  + f.Top  * nextContainerHeightPx;
                     if (Math.Abs(Left - nextLeft) > epsilon) { Left = nextLeft; movedWindowz = true; }
                     if (Math.Abs(Top  - nextTop)  > epsilon) { Top  = nextTop;  movedWindowz = true; }
 
                     if (f.Width > 0)
                     {
-                        double nextW = Math.Max(MinWidth, managedRect.Width / f.Width / dpiScaleX + frameExtraWidthDip);
+                        double nextW = Math.Max(MinWidth, nextContainerWidthPx / dpiScaleX + frameExtraWidthDip);
                         if (Math.Abs(Width - nextW) > epsilon) { Width = nextW; movedWindowz = true; resizedWindowz = true; }
                     }
                     if (f.Height > 0)
                     {
-                        double nextH = Math.Max(MinHeight, managedRect.Height / f.Height / dpiScaleY + frameExtraHeightDip);
+                        double nextH = Math.Max(MinHeight, nextContainerHeightPx / dpiScaleY + frameExtraHeightDip);
                         if (Math.Abs(Height - nextH) > epsilon) { Height = nextH; movedWindowz = true; resizedWindowz = true; }
                     }
                 }
@@ -593,6 +659,12 @@ public partial class MainWindow
             return;
 
         if (!NativeMethods.IsWindow(hwnd)) return;
+        if (NativeMethods.IsZoomed(hwnd))
+        {
+            HandleManagedWindowMaximize(hwnd);
+            return;
+        }
+
         if (!NativeMethods.TryGetVisibleWindowRect(hwnd, out var rect)) return;
 
         var fractions = tile.GetLayoutFractions();
@@ -605,8 +677,24 @@ public partial class MainWindow
             return;
 
         var f = fractions[fractionIdx];
-        double nextLeft = rect.Left - offsetXPx - f.Left * WindowHostContainer.ActualWidth  * dpiScaleX;
-        double nextTop  = rect.Top  - offsetYPx - f.Top  * WindowHostContainer.ActualHeight * dpiScaleY;
+        GetTileSlotGapInsets(
+            f,
+            TileSplitterGapDip * dpiScaleX,
+            TileSplitterGapDip * dpiScaleY,
+            out double leftGap,
+            out double topGap,
+            out double rightGap,
+            out double bottomGap);
+
+        double nextContainerWidthPx = f.Width > 0
+            ? (rect.Width + leftGap + rightGap) / f.Width
+            : WindowHostContainer.ActualWidth * dpiScaleX;
+        double nextContainerHeightPx = f.Height > 0
+            ? (rect.Height + topGap + bottomGap) / f.Height
+            : WindowHostContainer.ActualHeight * dpiScaleY;
+
+        double nextLeft = rect.Left - offsetXPx - leftGap - f.Left * nextContainerWidthPx;
+        double nextTop  = rect.Top  - offsetYPx - topGap  - f.Top  * nextContainerHeightPx;
 
         const double epsilon = 0.5;
         bool moved = false;
@@ -621,12 +709,12 @@ public partial class MainWindow
             // フラクションから Windowz サイズを逆算
             if (f.Width > 0)
             {
-                double nextW = Math.Max(MinWidth, rect.Width / f.Width / dpiScaleX + frameExtraWidthDip);
+                double nextW = Math.Max(MinWidth, nextContainerWidthPx / dpiScaleX + frameExtraWidthDip);
                 if (Math.Abs(Width - nextW) > epsilon) { Width = nextW; moved = true; resized = true; }
             }
             if (f.Height > 0)
             {
-                double nextH = Math.Max(MinHeight, rect.Height / f.Height / dpiScaleY + frameExtraHeightDip);
+                double nextH = Math.Max(MinHeight, nextContainerHeightPx / dpiScaleY + frameExtraHeightDip);
                 if (Math.Abs(Height - nextH) > epsilon) { Height = nextH; moved = true; resized = true; }
             }
         }
