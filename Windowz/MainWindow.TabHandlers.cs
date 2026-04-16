@@ -33,8 +33,13 @@ public partial class MainWindow
         _pendingWindowControlAction = WindowControlAction.None;
         _pendingWindowControlButton = null;
 
+        bool wasSuppressed = _suppressManagedWindowPromotion;
         if (!keepManagedWindowPromotionSuppressed)
+        {
             _suppressManagedWindowPromotion = false;
+            if (wasSuppressed)
+                ScheduleForegroundWindowRecheck();
+        }
     }
 
     private WindowControlAction GetWindowControlAction(Button button)

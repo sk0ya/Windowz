@@ -220,7 +220,10 @@ public partial class MainWindow
         ReleaseMouseCapture();
 
         if (wasDragging)
+        {
             UpdateManagedWindowLayout(activate: false, positionOnlyUpdate: true);
+            ScheduleForegroundWindowRecheck();
+        }
     }
 
     protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)

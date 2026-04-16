@@ -149,6 +149,21 @@ public partial class MainWindow
         return null;
     }
 
+    private void ScheduleForegroundWindowRecheck()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            if (_suppressManagedWindowPromotion || _isDragging)
+                return;
+
+            var foregroundWindow = NativeMethods.GetForegroundWindow();
+            if (foregroundWindow == IntPtr.Zero || foregroundWindow == _mainWindowHandle)
+                return;
+
+            OnForegroundWindowChanged(foregroundWindow);
+        });
+    }
+
     private void EnsureManagedWindowSyncHooks(IntPtr handle)
     {
         if (handle == IntPtr.Zero)
