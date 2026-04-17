@@ -154,7 +154,8 @@ public class WindowManager
         int width,
         int height,
         bool bringToFront,
-        IntPtr windWindowHandle = default)
+        IntPtr windWindowHandle = default,
+        bool setZOrder = true)
     {
         if (!_managedWindowStates.ContainsKey(handle)) return;
         if (!NativeMethods.IsWindow(handle))
@@ -187,21 +188,28 @@ public class WindowManager
             out int windowWidth,
             out int windowHeight);
 
+        // setZOrder=false のとき (タイル表示) は呼び出し元が RaiseTileWindowsAboveWindowz で
+        // Z-order を一括設定するため、ここでは位置・サイズのみ更新する。
+        uint flags = NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW;
+        if (!setZOrder)
+            flags |= NativeMethods.SWP_NOZORDER;
+
         bool positioned = NativeMethods.SetWindowPos(
             handle,
-            NativeMethods.HWND_TOP,
+            setZOrder ? NativeMethods.HWND_TOP : IntPtr.Zero,
             windowX,
             windowY,
             windowWidth,
             windowHeight,
-            NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
+            flags);
 
         if (!positioned)
         {
             NativeMethods.MoveWindow(handle, windowX, windowY, windowWidth, windowHeight, true);
         }
 
-        if (windWindowHandle != IntPtr.Zero &&
+        if (setZOrder &&
+            windWindowHandle != IntPtr.Zero &&
             windWindowHandle != handle &&
             NativeMethods.IsWindow(windWindowHandle))
         {
@@ -297,32 +305,13 @@ public class WindowManager
         }
     }
 
-    /// <summary>
-    /// アニメーション（最小化・復元エフェクト）を一時的に無効化して ShowWindow を呼ぶ。
-    /// システム設定を取得→無効化→ShowWindow→元に戻す、の順で実行する。
-    /// </summary>
     private static void ShowWindowNoAnimation(IntPtr handle, int nCmdShow)
     {
-        var ai = new NativeMethods.ANIMATIONINFO
-        {
-            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.ANIMATIONINFO>()
-        };
-        NativeMethods.SystemParametersInfo(NativeMethods.SPI_GETANIMATION, ai.cbSize, ref ai, 0);
-
-        int saved = ai.iMinAnimate;
-        if (saved != 0)
-        {
-            ai.iMinAnimate = 0;
-            NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETANIMATION, ai.cbSize, ref ai, 0);
-        }
-
+        int one = 1;
+        NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DWMWA_TRANSITIONS_FORCEDISABLED, ref one, sizeof(int));
         NativeMethods.ShowWindow(handle, nCmdShow);
-
-        if (saved != 0)
-        {
-            ai.iMinAnimate = saved;
-            NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETANIMATION, ai.cbSize, ref ai, 0);
-        }
+        int zero = 0;
+        NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DWMWA_TRANSITIONS_FORCEDISABLED, ref zero, sizeof(int));
     }
 
     private static void ConvertVisibleBoundsToWindowBounds(
@@ -448,12 +437,6 @@ public class WindowManager
         {
             return false;
         }
-    }
-
-    public void BringToFront(IntPtr handle)
-    {
-        if (handle == IntPtr.Zero) return;
-        NativeMethods.SetForegroundWindow(handle);
     }
 
     public void ArrangeTopmostWindows()

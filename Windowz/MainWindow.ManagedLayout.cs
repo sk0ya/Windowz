@@ -371,7 +371,7 @@ public partial class MainWindow
                     bounds.Width,
                     bounds.Height,
                     bringSelectedWindowToFront && selectedTab == tab && handle == primaryHandle,
-                    _mainWindowHandle);
+                    setZOrder: false);
             }
 
             RaiseTileWindowsAboveWindowz(

@@ -26,7 +26,7 @@ internal static class NativeMethods
     public const uint WS_EX_TRANSPARENT = 0x00000020;
 
     public static readonly IntPtr HWND_TOPMOST = new(-1);
-    public static readonly IntPtr HWND_TOP = IntPtr.Zero;
+    public static readonly IntPtr HWND_TOP = new(0);
     public static readonly IntPtr HWND_BOTTOM = new(1);
 
     public const uint SWP_NOZORDER = 0x0004;
@@ -280,21 +280,6 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
 
-    // ウィンドウアニメーション（最小化・復元エフェクト）の取得・設定
-    public const uint SPI_GETANIMATION = 0x0048;
-    public const uint SPI_SETANIMATION = 0x0049;
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct ANIMATIONINFO
-    {
-        public uint cbSize;
-        public int iMinAnimate; // 0 = アニメーション無効、1 = 有効
-    }
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref ANIMATIONINFO pvParam, uint fWinIni);
-
     // マルチモニター DPI 取得
     public const uint MONITOR_DEFAULTTONEAREST = 2;
     public const int MDT_EFFECTIVE_DPI = 0;
@@ -309,12 +294,16 @@ internal static class NativeMethods
 
     public const int DWMWA_BORDER_COLOR = 34;
     public const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;
+    public const int DWMWA_TRANSITIONS_FORCEDISABLED = 3;
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref uint pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 
     // --- Process elevation check ---
 
