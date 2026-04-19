@@ -134,7 +134,10 @@ public partial class MainWindow
                 return;
             }
 
-            UpdateManagedWindowLayout(activate: false);
+            // Same-tab foreground events include taskbar restores. Re-assert
+            // activation after Windowz itself is restored because that restore
+            // can otherwise steal foreground from the managed app.
+            UpdateManagedWindowLayout(activate: true);
         });
     }
 

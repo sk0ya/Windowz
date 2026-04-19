@@ -68,11 +68,15 @@ public partial class MainWindow
         // タスクバークリックによる最小化を有効にする。
         // 管理ウィンドウがフォアグラウンドを持っているとき、シェルは Windowz を
         // 非フォアグラウンドと判断し、最小化ではなく WA_CLICKACTIVE でアクティブ化を試みる。
-        // カーソルが Windowz の外（タスクバー上）にある場合は最小化する。
+        // ただし別アプリから Windowz を前面化するクリックも同じ形で届くため、
+        // 直前のアクティブウィンドウが Windowz グループ内の場合だけ最小化として扱う。
         if (msg == WM_ACTIVATE)
         {
             int activationType = unchecked((short)(wParam.ToInt64() & 0xFFFF));
-            if (activationType == WA_CLICKACTIVE && WindowState != WindowState.Minimized)
+            var previousActiveWindow = lParam;
+            if (activationType == WA_CLICKACTIVE &&
+                WindowState != WindowState.Minimized &&
+                IsWindowzActivationGroupWindow(previousActiveWindow))
             {
                 if (NativeMethods.GetCursorPos(out var cursorPos) &&
                     !IsScreenPointInsideWindow(cursorPos.X, cursorPos.Y))
@@ -121,6 +125,18 @@ public partial class MainWindow
         }
 
         return IntPtr.Zero;
+    }
+
+    private bool IsWindowzActivationGroupWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+            return false;
+
+        var root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
+        if (root == IntPtr.Zero)
+            root = hwnd;
+
+        return root == _mainWindowHandle || FindExternallyManagedTabByHandle(root) != null;
     }
 
     private bool IsPointInsideElement(FrameworkElement element, Point windowPoint)
