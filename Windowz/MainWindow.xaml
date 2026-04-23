@@ -594,13 +594,10 @@
             <Grid x:Name="CommandPaletteOverlay" 
                   Margin="10"
                   Panel.ZIndex="101"
-                  Visibility="{Binding IsCommandPaletteOpen, Converter={StaticResource BoolToVisibility}}"
-                  MouseLeftButtonDown="CommandPaletteOverlay_BackgroundClick">
-                <Grid Background="#80000000">
-                    <views:CommandPalette x:Name="CommandPaletteControl"
-                                          HorizontalAlignment="Center" VerticalAlignment="Top"
-                                          Margin="0,80,0,0" />
-                </Grid>
+                  Visibility="{Binding IsCommandPaletteOpen, Converter={StaticResource BoolToVisibility}}">
+                <views:CommandPalette x:Name="CommandPaletteControl"
+                                      HorizontalAlignment="Center" VerticalAlignment="Top"
+                                      Margin="0,80,0,0" />
             </Grid>
 
         </Grid>

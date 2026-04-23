@@ -122,11 +122,4 @@ public partial class MainWindow
         }
     }
 
-    private void CommandPaletteOverlay_BackgroundClick(object sender, MouseButtonEventArgs e)
-    {
-        if (!CommandPaletteControl.IsMouseOver)
-        {
-            _viewModel.CloseCommandPaletteCommand.Execute(null);
-        }
-    }
 }

@@ -130,11 +130,6 @@ public partial class MainWindow
             {
                 Activate();
 
-                HideAllWebTabs();
-                WebTabContainer.Visibility = Visibility.Collapsed;
-
-                UpdateManagedWindowLayout(activate: false);
-
                 var palVm = (CommandPaletteViewModel)CommandPaletteControl.DataContext;
                 palVm.Open();
 
