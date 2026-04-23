@@ -455,6 +455,7 @@
                         <!-- Add Window Button -->
                         <Button x:Name="AddWindowButton" Content="+"
                                 Click="AddWindowButton_Click"
+                                PreviewMouseLeftButtonDown="WindowControlButton_PreviewMouseLeftButtonDown"
                                 Width="36" Height="36"
                                 FontSize="16" FontWeight="Light"
                                 Background="Transparent" BorderThickness="0"

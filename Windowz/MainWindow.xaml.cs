@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private enum WindowControlAction
     {
         None,
+        AddWindow,
         Menu,
         Minimize,
         Maximize,

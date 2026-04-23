@@ -44,6 +44,9 @@ public partial class MainWindow
 
     private WindowControlAction GetWindowControlAction(Button button)
     {
+        if (ReferenceEquals(button, AddWindowButton))
+            return WindowControlAction.AddWindow;
+
         if (ReferenceEquals(button, MenuButton))
             return WindowControlAction.Menu;
 
@@ -63,6 +66,11 @@ public partial class MainWindow
     {
         switch (action)
         {
+            case WindowControlAction.AddWindow:
+                ClearWindowControlAction();
+                _viewModel.OpenWindowPickerCommand.Execute(null);
+                break;
+
             case WindowControlAction.Menu:
                 if (MenuButton.ContextMenu != null)
                 {
