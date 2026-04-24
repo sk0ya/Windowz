@@ -91,7 +91,7 @@ public partial class MainWindow
     {
         return _isTileModeActive &&
                _viewModel.SelectedTab?.TileLayout != null &&
-               (_viewModel.IsWindowPickerOpen || _viewModel.IsCommandPaletteOpen);
+               _viewModel.IsWindowPickerOpen;
     }
 
     private ManagedWindowLayoutTarget ResolveManagedWindowLayoutTarget()
@@ -102,14 +102,12 @@ public partial class MainWindow
         if (tile != null &&
             tile.Tabs.Count >= 2 &&
             !_viewModel.IsWindowPickerOpen &&
-            !_viewModel.IsCommandPaletteOpen &&
             WindowState != WindowState.Minimized)
         {
             return ManagedWindowLayoutTarget.ForTile(tile);
         }
 
         if (_viewModel.IsWindowPickerOpen ||
-            _viewModel.IsCommandPaletteOpen ||
             _viewModel.IsContentTabActive ||
             _viewModel.IsWebTabActive ||
             WindowState == WindowState.Minimized ||

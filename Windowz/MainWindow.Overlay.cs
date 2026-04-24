@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using WindowzTabManager.Models;
 using WindowzTabManager.Services;
 using WindowzTabManager.ViewModels;
+using WindowzTabManager.Views;
 
 namespace WindowzTabManager;
 
@@ -13,6 +14,98 @@ public partial class MainWindow
     private void AddWindowButton_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.OpenWindowPickerCommand.Execute(null);
+    }
+
+    private CommandPaletteWindow EnsureCommandPaletteWindow()
+    {
+        if (_commandPaletteWindow != null)
+        {
+            return _commandPaletteWindow;
+        }
+
+        var window = new CommandPaletteWindow();
+        window.PaletteControl.DataContext = _commandPaletteViewModel;
+        window.Deactivated += CommandPaletteWindow_Deactivated;
+        window.Closed += CommandPaletteWindow_Closed;
+
+        _commandPaletteWindow = window;
+        return window;
+    }
+
+    private void CommandPaletteWindow_Deactivated(object? sender, EventArgs e)
+    {
+        if (_viewModel.IsCommandPaletteOpen)
+        {
+            _skipManagedWindowRestoreAfterPaletteClose = true;
+            _viewModel.CloseCommandPaletteCommand.Execute(null);
+        }
+    }
+
+    private void CommandPaletteWindow_Closed(object? sender, EventArgs e)
+    {
+        if (_commandPaletteWindow == null)
+        {
+            return;
+        }
+
+        _commandPaletteWindow.Deactivated -= CommandPaletteWindow_Deactivated;
+        _commandPaletteWindow.Closed -= CommandPaletteWindow_Closed;
+        _commandPaletteWindow = null;
+    }
+
+    private void ShowCommandPaletteWindow()
+    {
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+
+        _skipManagedWindowRestoreAfterPaletteClose = false;
+        _commandPaletteViewModel.Open();
+
+        var window = EnsureCommandPaletteWindow();
+        UpdateCommandPaletteWindowPlacement(window);
+
+        if (!window.IsVisible)
+        {
+            window.Show();
+        }
+
+        window.Activate();
+        UpdateCommandPaletteWindowPlacement(window);
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (!_viewModel.IsCommandPaletteOpen || _commandPaletteWindow != window)
+                return;
+
+            UpdateCommandPaletteWindowPlacement(window);
+            window.RequestSearchBoxFocus();
+        });
+    }
+
+    private void HideCommandPaletteWindow()
+    {
+        if (_commandPaletteWindow?.IsVisible == true)
+        {
+            _commandPaletteWindow.Hide();
+        }
+    }
+
+    private void UpdateCommandPaletteWindowPlacement()
+    {
+        if (_commandPaletteWindow == null)
+            return;
+
+        UpdateCommandPaletteWindowPlacement(_commandPaletteWindow);
+    }
+
+    private void UpdateCommandPaletteWindowPlacement(CommandPaletteWindow window)
+    {
+        double paletteWidth = window.ActualWidth > 0 ? window.ActualWidth : window.Width;
+        if (double.IsNaN(paletteWidth) || paletteWidth <= 0)
+            paletteWidth = 500;
+
+        window.Left = Left + Math.Max(0, (ActualWidth - paletteWidth) / 2);
+        window.Top = Top + 80;
     }
 
     private void RestoreEmbeddedWindow()

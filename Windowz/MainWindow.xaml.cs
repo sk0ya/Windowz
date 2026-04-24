@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private readonly TabManager _tabManager;
     private readonly WindowManager _windowManager;
     private readonly SettingsManager _settingsManager;
+    private readonly CommandPaletteViewModel _commandPaletteViewModel;
     private IntPtr _mainWindowHandle;
     private IntPtr _activeManagedWindowHandle;
     private Point? _dragStartPoint;
@@ -55,6 +56,8 @@ public partial class MainWindow : Window
     private bool _skipCloseWaitOnce;
     private bool _isCleanupCompleted;
     private CancellationTokenSource? _closeWaitCts;
+    private CommandPaletteWindow? _commandPaletteWindow;
+    private bool _skipManagedWindowRestoreAfterPaletteClose;
 
     public MainWindow()
     {
@@ -65,6 +68,7 @@ public partial class MainWindow : Window
         _tabManager = App.GetService<TabManager>();
         _windowManager = App.GetService<WindowManager>();
         _settingsManager = App.GetService<SettingsManager>();
+        _commandPaletteViewModel = App.GetService<CommandPaletteViewModel>();
 
         DataContext = _viewModel;
         WindowPickerControl.DataContext = App.GetService<WindowPickerViewModel>();
@@ -127,10 +131,8 @@ public partial class MainWindow : Window
         };
 
         // Wire up command palette events
-        CommandPaletteControl.DataContext = App.GetService<CommandPaletteViewModel>();
-        var paletteVm = (CommandPaletteViewModel)CommandPaletteControl.DataContext;
-        paletteVm.ItemExecuted += OnCommandPaletteItemExecuted;
-        paletteVm.Cancelled += (s, e) =>
+        _commandPaletteViewModel.ItemExecuted += OnCommandPaletteItemExecuted;
+        _commandPaletteViewModel.Cancelled += (s, e) =>
         {
             _viewModel.CloseCommandPaletteCommand.Execute(null);
         };
@@ -352,6 +354,18 @@ public partial class MainWindow : Window
 
         _settingsManager.TabHeaderPositionChanged -= OnTabHeaderPositionChanged;
 
+        if (_commandPaletteWindow != null)
+        {
+            try
+            {
+                _commandPaletteWindow.Close();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to close command palette window: {ex.Message}");
+            }
+        }
+
         // Dispose all web tab controls
         foreach (var control in _webTabControls.Values.ToList())
         {
@@ -378,11 +392,14 @@ public partial class MainWindow : Window
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        UpdateCommandPaletteWindowPlacement();
         UpdateManagedWindowLayout(activate: false);
     }
 
     private void MainWindow_LocationChanged(object? sender, EventArgs e)
     {
+        UpdateCommandPaletteWindowPlacement();
+
         if (_isDragging)
         {
             // ドラッグ中は SWP_ASYNCWINDOWPOS で管理ウィンドウを非同期追従させる。
@@ -408,6 +425,13 @@ public partial class MainWindow : Window
 
     private void Window_StateChanged(object sender, EventArgs e)
     {
+        if (WindowState == WindowState.Minimized && _viewModel.IsCommandPaletteOpen)
+        {
+            _viewModel.CloseCommandPaletteCommand.Execute(null);
+        }
+
+        UpdateCommandPaletteWindowPlacement();
+
         // Update maximize button icon
         if (WindowState == WindowState.Maximized)
         {

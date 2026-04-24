@@ -128,19 +128,20 @@ public partial class MainWindow
         {
             if (_viewModel.IsCommandPaletteOpen)
             {
-                Activate();
-
-                var palVm = (CommandPaletteViewModel)CommandPaletteControl.DataContext;
-                palVm.Open();
-
-                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
-                {
-                    CommandPaletteControl.RequestSearchBoxFocus();
-                });
+                ShowCommandPaletteWindow();
             }
             else
             {
-                RestoreEmbeddedWindow();
+                HideCommandPaletteWindow();
+
+                if (_skipManagedWindowRestoreAfterPaletteClose)
+                {
+                    _skipManagedWindowRestoreAfterPaletteClose = false;
+                }
+                else
+                {
+                    RestoreEmbeddedWindow();
+                }
             }
         }
         else if (e.PropertyName == nameof(MainViewModel.SelectedTab))

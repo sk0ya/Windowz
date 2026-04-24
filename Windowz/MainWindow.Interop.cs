@@ -13,7 +13,7 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
             {
-                CommandPaletteControl.RequestSearchBoxFocus();
+                _commandPaletteWindow?.RequestSearchBoxFocus();
             });
             return;
         }
