@@ -51,6 +51,8 @@ public partial class MainWindow
 
     private IntPtr _foregroundEventHook;
     private ManagedWinEventDelegate? _foregroundEventProc;
+    private IntPtr _lastForegroundWindow;
+    private IntPtr _lastForegroundBeforeWindowzActivation;
 
     // タイル表示中: 非プライマリウィンドウのプロセスごとに追加したフックの一覧
     private readonly List<IntPtr> _tileExtraHooks = new();
@@ -93,6 +95,11 @@ public partial class MainWindow
     {
         if (hwnd == IntPtr.Zero)
             return;
+
+        if (hwnd == _mainWindowHandle)
+            _lastForegroundBeforeWindowzActivation = _lastForegroundWindow;
+
+        _lastForegroundWindow = hwnd;
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnForegroundWindowChanged(hwnd));
     }
 

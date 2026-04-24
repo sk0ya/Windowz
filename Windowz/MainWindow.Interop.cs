@@ -21,6 +21,9 @@ public partial class MainWindow
         if (_viewModel.IsWindowPickerOpen)
             return;
 
+        if (TryMinimizeWindowzFromTaskbarActivation())
+            return;
+
         bool shouldPromoteSingleManagedWindow =
             _viewModel.SelectedTab?.TileLayout == null &&
             !_viewModel.IsContentTabActive &&
@@ -33,6 +36,7 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
             {
                 if (IsActive &&
+                    WindowState != WindowState.Minimized &&
                     !_suppressManagedWindowPromotion &&
                     !_viewModel.IsWindowPickerOpen &&
                     !_viewModel.IsCommandPaletteOpen &&
@@ -56,38 +60,12 @@ public partial class MainWindow
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        const int WM_ACTIVATE = 0x0006;
         const int WM_MOUSEACTIVATE = 0x0021;
         const int WM_NCHITTEST = 0x0084;
         const int WM_NCPAINT   = 0x0085;
         const int WM_GETMINMAXINFO = 0x0024;
         const int HTCLIENT = 1;
         const int MA_ACTIVATE = 1;
-        const int WA_CLICKACTIVE = 2;
-
-        // タスクバークリックによる最小化を有効にする。
-        // 管理ウィンドウがフォアグラウンドを持っているとき、シェルは Windowz を
-        // 非フォアグラウンドと判断し、最小化ではなく WA_CLICKACTIVE でアクティブ化を試みる。
-        // ただし別アプリから Windowz を前面化するクリックも同じ形で届くため、
-        // 直前のアクティブウィンドウが Windowz グループ内の場合だけ最小化として扱う。
-        if (msg == WM_ACTIVATE)
-        {
-            int activationType = unchecked((short)(wParam.ToInt64() & 0xFFFF));
-            var previousActiveWindow = lParam;
-            if (activationType == WA_CLICKACTIVE &&
-                WindowState != WindowState.Minimized &&
-                IsWindowzActivationGroupWindow(previousActiveWindow))
-            {
-                if (NativeMethods.GetCursorPos(out var cursorPos) &&
-                    !IsScreenPointInsideWindow(cursorPos.X, cursorPos.Y))
-                {
-                    Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
-                    {
-                        WindowState = WindowState.Minimized;
-                    });
-                }
-            }
-        }
 
         // When the window is not active and the user clicks anywhere on it,
         // return MA_ACTIVATE so that Windows both activates Windowz AND passes
@@ -127,16 +105,94 @@ public partial class MainWindow
         return IntPtr.Zero;
     }
 
-    private bool IsWindowzActivationGroupWindow(IntPtr hwnd)
+    private static IntPtr NormalizeRootWindowHandle(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
-            return false;
+            return IntPtr.Zero;
 
         var root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
-        if (root == IntPtr.Zero)
-            root = hwnd;
+        return root == IntPtr.Zero ? hwnd : root;
+    }
 
-        return root == _mainWindowHandle || FindExternallyManagedTabByHandle(root) != null;
+    private bool TryMinimizeWindowzFromTaskbarActivation()
+    {
+        if (WindowState == WindowState.Minimized ||
+            _suppressManagedWindowPromotion ||
+            _viewModel.IsCommandPaletteOpen ||
+            _viewModel.IsWindowPickerOpen ||
+            _viewModel.IsContentTabActive ||
+            _viewModel.IsWebTabActive)
+        {
+            return false;
+        }
+
+        var currentManagedHandle = GetCurrentActiveManagedWindowHandle();
+        if (currentManagedHandle == IntPtr.Zero)
+            return false;
+
+        if (NormalizeRootWindowHandle(_lastForegroundBeforeWindowzActivation) !=
+            NormalizeRootWindowHandle(currentManagedHandle) ||
+            !IsTaskbarPointerActivation())
+        {
+            return false;
+        }
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
+        {
+            if (WindowState != WindowState.Minimized)
+                WindowState = WindowState.Minimized;
+        });
+        return true;
+    }
+
+    private IntPtr GetCurrentActiveManagedWindowHandle()
+    {
+        var selectedTab = _viewModel.SelectedTab;
+        if (selectedTab == null ||
+            !_viewModel.TryGetExternallyManagedWindowHandle(selectedTab, out var handle))
+        {
+            return IntPtr.Zero;
+        }
+
+        return handle;
+    }
+
+    private bool IsTaskbarPointerActivation()
+    {
+        if (!NativeMethods.GetCursorPos(out var cursorPos))
+            return false;
+
+        if (IsScreenPointInsideWindow(cursorPos.X, cursorPos.Y))
+            return false;
+
+        return IsTaskbarWindowAtScreenPoint(cursorPos.X, cursorPos.Y);
+    }
+
+    private bool IsTaskbarWindowAtScreenPoint(int screenX, int screenY)
+    {
+        var pointedWindow = NativeMethods.WindowFromPoint(new NativeMethods.POINT
+        {
+            X = screenX,
+            Y = screenY
+        });
+        if (pointedWindow == IntPtr.Zero)
+            return false;
+
+        var root = NativeMethods.GetAncestor(pointedWindow, NativeMethods.GA_ROOT);
+        if (root == IntPtr.Zero)
+            root = pointedWindow;
+
+        return IsTaskbarClassName(NativeMethods.GetWindowClassName(pointedWindow)) ||
+               IsTaskbarClassName(NativeMethods.GetWindowClassName(root));
+    }
+
+    private static bool IsTaskbarClassName(string className)
+    {
+        return className is "Shell_TrayWnd" or
+               "Shell_SecondaryTrayWnd" or
+               "MSTaskListWClass" or
+               "MSTaskSwWClass" or
+               "TaskListThumbnailWnd";
     }
 
     private bool IsPointInsideElement(FrameworkElement element, Point windowPoint)
