@@ -168,6 +168,37 @@ public partial class MainWindow
         }
     }
 
+    private bool IsScreenPointInsideWindowControlButton(int screenX, int screenY)
+    {
+        if (!IsLoaded)
+            return false;
+
+        try
+        {
+            var windowPoint = PointFromScreen(new Point(screenX, screenY));
+            FrameworkElement[] buttons =
+            [
+                AddWindowButton,
+                MenuButton,
+                MinimizeButton,
+                MaximizeButton,
+                CloseButton
+            ];
+
+            foreach (var button in buttons)
+            {
+                if (IsPointInsideElement(button, windowPoint))
+                    return true;
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private IntPtr HitTestResizeBorder(IntPtr hwnd, IntPtr lParam)
     {
         const int SideResizeBorderThicknessPx = 8;
@@ -197,6 +228,11 @@ public partial class MainWindow
         {
             return IntPtr.Zero;
         }
+
+        // Keep title-bar buttons clickable even when they overlap the custom
+        // resize border.
+        if (IsScreenPointInsideWindowControlButton(mouseX, mouseY))
+            return IntPtr.Zero;
 
         bool onLeft = mouseX - windowRect.Left <= SideResizeBorderThicknessPx;
         bool onRight = windowRect.Right - mouseX <= SideResizeBorderThicknessPx;
