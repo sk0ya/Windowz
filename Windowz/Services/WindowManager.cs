@@ -208,25 +208,6 @@ public class WindowManager
             NativeMethods.MoveWindow(handle, windowX, windowY, windowWidth, windowHeight, true);
         }
 
-        if (setZOrder &&
-            windWindowHandle != IntPtr.Zero &&
-            windWindowHandle != handle &&
-            NativeMethods.IsWindow(windWindowHandle))
-        {
-            // Keep Windowz directly behind the active managed window without activating it.
-            NativeMethods.SetWindowPos(
-                windWindowHandle,
-                handle,
-                0,
-                0,
-                0,
-                0,
-                NativeMethods.SWP_NOMOVE |
-                NativeMethods.SWP_NOSIZE |
-                NativeMethods.SWP_NOACTIVATE |
-                NativeMethods.SWP_NOREDRAW);
-        }
-
         if (bringToFront)
         {
             NativeMethods.ForceForegroundWindow(handle);
