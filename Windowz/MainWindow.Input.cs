@@ -145,9 +145,9 @@ public partial class MainWindow
         }
 
         // ウィンドウドラッグ処理
-        // DragMove() はブロッキングモーダルループのため AllowsTransparency ウィンドウでは
-        // ドラッグ中に描画が更新されない。GetCursorPos で手動追跡することで
-        // Left/Top をリアルタイムに更新し、視覚的なズレをなくす。
+        // DragMove() のモーダルループに依存せず Left/Top を手動追跡する。
+        // これにより管理ウィンドウの追従を細かく制御でき、最大化解除直後の
+        // ドラッグ開始位置も安定させやすい。
         if (_dragStartPoint.HasValue)
         {
             // マウスキャプチャが別ウィンドウに奪われた場合などに MouseLeftButtonUp が
