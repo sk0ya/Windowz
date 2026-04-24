@@ -212,6 +212,19 @@ public class WindowManager
         {
             NativeMethods.ForceForegroundWindow(handle);
         }
+
+        // z-order を直す必要があるのは managed window を前面に出すときだけ。
+        // bringToFront=false の位置更新パス (ドラッグ・LocationChanged 等) では
+        // SetWindowPos がアクセシビリティイベントを再発火させてループになるため呼ばない。
+        if (bringToFront && windWindowHandle != default && NativeMethods.IsWindow(windWindowHandle) &&
+            NativeMethods.GetWindow(handle, NativeMethods.GW_HWNDNEXT) != windWindowHandle)
+        {
+            NativeMethods.SetWindowPos(
+                windWindowHandle,
+                handle,
+                0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+        }
     }
 
     /// <summary>
