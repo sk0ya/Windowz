@@ -51,22 +51,38 @@ public partial class MainWindow
             case ManagedWindowLayoutMode.Tile:
                 _isTileModeActive = true;
                 UpdateTileLayout(target.Tile!, activate, positionOnlyUpdate);
+                if (!positionOnlyUpdate)
+                {
+                    UpdateManagedSurfaceRegion(target);
+                }
                 return;
 
             case ManagedWindowLayoutMode.SingleWindow:
                 ExitTileModeIfNeeded();
                 UpdateSingleManagedWindowLayout(target.Handle, activate);
+                if (!positionOnlyUpdate)
+                {
+                    UpdateManagedSurfaceRegion(target);
+                }
                 return;
 
             default:
                 if (ShouldPreserveTileLayoutState())
                 {
                     HideManagedWindows();
+                    if (!positionOnlyUpdate)
+                    {
+                        UpdateManagedSurfaceRegion(target);
+                    }
                     return;
                 }
 
                 ExitTileModeIfNeeded();
                 HideManagedWindows();
+                if (!positionOnlyUpdate)
+                {
+                    UpdateManagedSurfaceRegion(target);
+                }
                 return;
         }
     }
@@ -539,5 +555,207 @@ public partial class MainWindow
             Bottom = top + height
         };
         return true;
+    }
+
+    private void UpdateManagedSurfaceRegion(ManagedWindowLayoutTarget target)
+    {
+        var hwnd = _mainWindowHandle != IntPtr.Zero
+            ? _mainWindowHandle
+            : new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd))
+            return;
+
+        if (!TryBuildManagedSurfaceRegion(target, out int windowWidth, out int windowHeight, out var holeRects) ||
+            holeRects.Count == 0)
+        {
+            ClearManagedSurfaceRegion(hwnd);
+            return;
+        }
+
+        string nextRegionKey = BuildManagedSurfaceRegionKey(windowWidth, windowHeight, holeRects);
+        if (string.Equals(_managedSurfaceRegionKey, nextRegionKey, StringComparison.Ordinal))
+            return;
+
+        IntPtr region = NativeMethods.CreateRectRgn(0, 0, windowWidth, windowHeight);
+        if (region == IntPtr.Zero)
+        {
+            ClearManagedSurfaceRegion(hwnd);
+            return;
+        }
+
+        try
+        {
+            foreach (var holeRect in holeRects)
+            {
+                IntPtr holeRegion = NativeMethods.CreateRectRgn(
+                    holeRect.Left,
+                    holeRect.Top,
+                    holeRect.Right,
+                    holeRect.Bottom);
+                if (holeRegion == IntPtr.Zero)
+                    continue;
+
+                try
+                {
+                    NativeMethods.CombineRgn(region, region, holeRegion, NativeMethods.RGN_DIFF);
+                }
+                finally
+                {
+                    NativeMethods.DeleteObject(holeRegion);
+                }
+            }
+
+            if (NativeMethods.SetWindowRgn(hwnd, region, true) == 0)
+            {
+                NativeMethods.DeleteObject(region);
+                ClearManagedSurfaceRegion(hwnd);
+                return;
+            }
+
+            region = IntPtr.Zero;
+            _managedSurfaceRegionKey = nextRegionKey;
+        }
+        finally
+        {
+            if (region != IntPtr.Zero)
+            {
+                NativeMethods.DeleteObject(region);
+            }
+        }
+    }
+
+    private void ClearManagedSurfaceRegion(IntPtr hwnd)
+    {
+        if (_managedSurfaceRegionKey == null)
+            return;
+
+        NativeMethods.SetWindowRgn(hwnd, IntPtr.Zero, true);
+        _managedSurfaceRegionKey = null;
+    }
+
+    private bool TryBuildManagedSurfaceRegion(
+        ManagedWindowLayoutTarget target,
+        out int windowWidth,
+        out int windowHeight,
+        out List<NativeMethods.RECT> holeRects)
+    {
+        windowWidth = 0;
+        windowHeight = 0;
+        holeRects = [];
+
+        if (target.Mode == ManagedWindowLayoutMode.None)
+            return false;
+
+        var hwnd = _mainWindowHandle != IntPtr.Zero
+            ? _mainWindowHandle
+            : new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || !NativeMethods.GetWindowRect(hwnd, out var windowRect))
+            return false;
+
+        windowWidth = Math.Max(1, windowRect.Width);
+        windowHeight = Math.Max(1, windowRect.Height);
+
+        if (!TryGetManagedSurfaceBoundsRelativeToWindow(out var hostBounds))
+            return false;
+
+        switch (target.Mode)
+        {
+            case ManagedWindowLayoutMode.SingleWindow:
+                if (TryClipRegionRect(hostBounds, windowWidth, windowHeight, out var singleBounds))
+                {
+                    holeRects.Add(singleBounds);
+                    return true;
+                }
+
+                return false;
+
+            case ManagedWindowLayoutMode.Tile:
+                var tile = target.Tile;
+                if (tile == null)
+                    return false;
+
+                var fractions = tile.GetLayoutFractions();
+                var members = ClassifyTileMembers(tile, fractions.Length);
+                foreach (var (_, _, index) in members.WindowMembers)
+                {
+                    if (index < 0 || index >= fractions.Length)
+                        continue;
+
+                    var slotBounds = GetTileSlotBoundsPx(fractions[index], hostBounds);
+                    if (TryClipRegionRect(slotBounds, windowWidth, windowHeight, out var clippedSlotBounds))
+                    {
+                        holeRects.Add(clippedSlotBounds);
+                    }
+                }
+
+                return holeRects.Count > 0;
+
+            default:
+                return false;
+        }
+    }
+
+    private bool TryGetManagedSurfaceBoundsRelativeToWindow(out NativeMethods.RECT bounds)
+    {
+        bounds = default;
+
+        if (!IsLoaded ||
+            WindowHostContainer.Visibility != Visibility.Visible ||
+            WindowHostContainer.ActualWidth <= 0 ||
+            WindowHostContainer.ActualHeight <= 0)
+        {
+            return false;
+        }
+
+        var (dpiScaleX, dpiScaleY) = GetCurrentDpiScale();
+        Point hostOffsetDip = WindowHostContainer.TranslatePoint(new Point(0, 0), this);
+
+        int left = (int)Math.Round(hostOffsetDip.X * dpiScaleX);
+        int top = (int)Math.Round(hostOffsetDip.Y * dpiScaleY);
+        int width = Math.Max(1, (int)Math.Round(WindowHostContainer.ActualWidth * dpiScaleX));
+        int height = Math.Max(1, (int)Math.Round(WindowHostContainer.ActualHeight * dpiScaleY));
+
+        bounds = new NativeMethods.RECT
+        {
+            Left = left,
+            Top = top,
+            Right = left + width,
+            Bottom = top + height
+        };
+        return true;
+    }
+
+    private static bool TryClipRegionRect(
+        NativeMethods.RECT bounds,
+        int windowWidth,
+        int windowHeight,
+        out NativeMethods.RECT clippedBounds)
+    {
+        clippedBounds = default;
+
+        int left = Math.Clamp(bounds.Left, 0, windowWidth);
+        int top = Math.Clamp(bounds.Top, 0, windowHeight);
+        int right = Math.Clamp(bounds.Right, 0, windowWidth);
+        int bottom = Math.Clamp(bounds.Bottom, 0, windowHeight);
+        if (right <= left || bottom <= top)
+            return false;
+
+        clippedBounds = new NativeMethods.RECT
+        {
+            Left = left,
+            Top = top,
+            Right = right,
+            Bottom = bottom
+        };
+        return true;
+    }
+
+    private static string BuildManagedSurfaceRegionKey(
+        int windowWidth,
+        int windowHeight,
+        IReadOnlyList<NativeMethods.RECT> holeRects)
+    {
+        return $"{windowWidth}x{windowHeight}:{string.Join(";", holeRects.Select(rect =>
+            $"{rect.Left},{rect.Top},{rect.Right},{rect.Bottom}"))}";
     }
 }

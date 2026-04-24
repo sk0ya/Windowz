@@ -45,6 +45,7 @@ public partial class MainWindow : Window
     private string _pendingSettingsContentKey = "GeneralSettings";
     private string _currentTabPosition = "Top";
     private bool _isTabBarCollapsed;
+    private string? _managedSurfaceRegionKey;
     private bool _wasMinimized;
     private readonly Dictionary<Guid, WebTabControl> _webTabControls = new();
     private Guid? _currentWebTabId;

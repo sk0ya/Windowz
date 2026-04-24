@@ -186,6 +186,11 @@ internal static class NativeMethods
     [DllImport("gdi32.dll")]
     public static extern IntPtr CreateRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect);
 
+    public const int RGN_DIFF = 4;
+
+    [DllImport("gdi32.dll")]
+    public static extern int CombineRgn(IntPtr hrgnDst, IntPtr hrgnSrc1, IntPtr hrgnSrc2, int fnCombineMode);
+
     [DllImport("user32.dll")]
     public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, [MarshalAs(UnmanagedType.Bool)] bool bRedraw);
 
