@@ -131,11 +131,13 @@ public partial class MainWindow
             return false;
 
         if (NormalizeRootWindowHandle(_lastForegroundBeforeWindowzActivation) !=
-            NormalizeRootWindowHandle(currentManagedHandle) ||
-            !IsTaskbarPointerActivation())
+            NormalizeRootWindowHandle(currentManagedHandle))
         {
             return false;
         }
+
+        if (!IsTaskbarPointerActivation())
+            return false;
 
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
         {
