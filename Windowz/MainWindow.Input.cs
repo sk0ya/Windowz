@@ -22,13 +22,11 @@ public partial class MainWindow
 
     private void TabScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (_currentTabPosition is "Top" or "Bottom")
-        {
-            // Horizontal tabs: convert vertical wheel to horizontal scroll
+        if (_currentTabPosition is "Left" or "Right")
+            TabScrollViewer.ScrollToVerticalOffset(TabScrollViewer.VerticalOffset - e.Delta / 3.0);
+        else
             TabScrollViewer.ScrollToHorizontalOffset(TabScrollViewer.HorizontalOffset - e.Delta);
-            e.Handled = true;
-        }
-        // Vertical tabs (Left/Right): default vertical scroll works
+        e.Handled = true;
     }
 
     private void TabArea_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

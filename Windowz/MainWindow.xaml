@@ -275,34 +275,6 @@
                             Background="{DynamicResource AccentFillColorDefaultBrush}"
                             Margin="4,0,0,0" VerticalAlignment="Center"
                             Visibility="{Binding TileLayout, Converter={StaticResource NullToVisibility}}"/>
-                    <Button Background="Transparent" BorderThickness="0"
-                            Padding="4" Margin="6,0,0,0"
-                            Click="CloseTab_Click" Tag="{Binding}"
-                            Width="20" Height="20" Cursor="Hand">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border Background="{TemplateBinding Background}" CornerRadius="3">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}"/>
-                                    </Trigger>
-                                    <DataTrigger Binding="{Binding IsMultiSelected}" Value="True">
-                                        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <ui:SymbolIcon Symbol="Dismiss16" FontSize="9"/>
-                    </Button>
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -336,7 +308,6 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Image Source="{Binding Icon}" Width="16" Height="16"
                            Margin="0,0,6,0" VerticalAlignment="Center"/>
@@ -360,34 +331,6 @@
                             Background="{DynamicResource AccentFillColorDefaultBrush}"
                             Margin="4,0,0,0" VerticalAlignment="Center"
                             Visibility="{Binding TileLayout, Converter={StaticResource NullToVisibility}}"/>
-                    <Button Grid.Column="3" Background="Transparent" BorderThickness="0"
-                            Padding="4" Margin="6,0,0,0"
-                            Click="CloseTab_Click" Tag="{Binding}"
-                            Width="20" Height="20" Cursor="Hand">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border Background="{TemplateBinding Background}" CornerRadius="3">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}"/>
-                                    </Trigger>
-                                    <DataTrigger Binding="{Binding IsMultiSelected}" Value="True">
-                                        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <ui:SymbolIcon Symbol="Dismiss16" FontSize="9"/>
-                    </Button>
                 </Grid>
             </Border>
         </DataTemplate>

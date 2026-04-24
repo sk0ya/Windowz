@@ -40,41 +40,6 @@
                            TextTrimming="CharacterEllipsis"
                            TextWrapping="NoWrap" />
 
-                <Button x:Name="CloseButton"
-                        Grid.Column="2"
-                        Width="20"
-                        Height="20"
-                        VerticalAlignment="Center"
-                        Padding="0"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand"
-                        Visibility="Hidden"
-                        Click="CloseButton_Click"
-                        ToolTip="閉じる">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="CloseBorder"
-                                    Width="20"
-                                    Height="20"
-                                    CornerRadius="3"
-                                    Background="Transparent">
-                                <Path Data="M5,5 L15,15 M15,5 L5,15"
-                                      Stroke="{DynamicResource TextFillColorSecondaryBrush}"
-                                      StrokeThickness="1.25"
-                                      StrokeStartLineCap="Round"
-                                      StrokeEndLineCap="Round"
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="CloseBorder" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
             </Grid>
         </Grid>
     </Border>

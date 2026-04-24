@@ -9,7 +9,6 @@ namespace WindowzTabManager;
 public partial class TabItemControl : UserControl
 {
     public event EventHandler? TabClicked;
-    public event EventHandler? CloseRequested;
 
     private bool _isActive;
 
@@ -59,7 +58,6 @@ public partial class TabItemControl : UserControl
             ActiveBorder.Visibility = Visibility.Visible;
             TitleText.Foreground = ActiveText;
             TitleText.FontWeight = FontWeights.SemiBold;
-            CloseButton.Visibility = Visibility.Visible;
         }
         else if (hover)
         {
@@ -67,7 +65,6 @@ public partial class TabItemControl : UserControl
             ActiveBorder.Visibility = Visibility.Collapsed;
             TitleText.Foreground = NormalText;
             TitleText.FontWeight = FontWeights.Normal;
-            CloseButton.Visibility = Visibility.Visible;
         }
         else
         {
@@ -75,7 +72,6 @@ public partial class TabItemControl : UserControl
             ActiveBorder.Visibility = Visibility.Collapsed;
             TitleText.Foreground = NormalText;
             TitleText.FontWeight = FontWeights.Normal;
-            CloseButton.Visibility = Visibility.Hidden;
         }
     }
 
@@ -84,17 +80,6 @@ public partial class TabItemControl : UserControl
 
     private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        // × ボタン以外のクリックでタブ切り替え
-        if (!IsMouseOverCloseButton(e.GetPosition(CloseButton)))
-            TabClicked?.Invoke(this, EventArgs.Empty);
-    }
-
-    private static bool IsMouseOverCloseButton(Point p) =>
-        p.X >= 0 && p.Y >= 0 && p.X <= 18 && p.Y <= 18;
-
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        e.Handled = true;
-        CloseRequested?.Invoke(this, EventArgs.Empty);
+        TabClicked?.Invoke(this, EventArgs.Empty);
     }
 }
