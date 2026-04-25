@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -103,21 +102,13 @@ public partial class MainWindow
         if (hwnd == _mainWindowHandle)
         {
             _lastForegroundBeforeWindowzActivation = _lastForegroundWindow;
-            Debug.WriteLine($"[FgEvent] Windowz activated: lastFgBefore=0x{_lastForegroundBeforeWindowzActivation:X} lastNonTaskbar=0x{_lastNonTaskbarForegroundWindow:X}");
         }
-        else
+        else if (!IsTaskbarClassName(NativeMethods.GetWindowClassName(hwnd)))
         {
-            string className = NativeMethods.GetWindowClassName(hwnd);
-            bool isTaskbar = IsTaskbarClassName(className);
-            Debug.WriteLine($"[FgEvent] fg changed: 0x{_lastForegroundWindow:X} -> 0x{hwnd:X} ({className}) taskbar={isTaskbar}");
-
-            if (!isTaskbar)
-            {
-                // Windowz 自プロセスのウィンドウ（コマンドパレット等）も除外する
-                NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
-                if (pid != 0 && pid != (uint)Environment.ProcessId)
-                    _lastNonTaskbarForegroundWindow = hwnd;
-            }
+            // Windowz 自プロセスのウィンドウ（コマンドパレット等）も除外する
+            NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid != 0 && pid != (uint)Environment.ProcessId)
+                _lastNonTaskbarForegroundWindow = hwnd;
         }
 
         _lastForegroundWindow = hwnd;

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -122,35 +121,23 @@ public partial class MainWindow
             _viewModel.IsContentTabActive ||
             _viewModel.IsWebTabActive)
         {
-            Debug.WriteLine($"[MinimizeToggle] SKIP early: state={WindowState} suppress={_suppressManagedWindowPromotion} palette={_viewModel.IsCommandPaletteOpen} picker={_viewModel.IsWindowPickerOpen} content={_viewModel.IsContentTabActive} web={_viewModel.IsWebTabActive}");
             return false;
         }
 
         var currentManagedHandle = GetCurrentActiveManagedWindowHandle();
-        Debug.WriteLine($"[MinimizeToggle] managedHandle=0x{currentManagedHandle:X} lastNonTaskbarFg=0x{_lastNonTaskbarForegroundWindow:X}");
-
         if (currentManagedHandle == IntPtr.Zero)
-        {
-            Debug.WriteLine("[MinimizeToggle] SKIP: no managed handle");
             return false;
-        }
 
         // タスクバー系ウィンドウと Windowz 自プロセスを除外した最後のフォアグラウンドで比較する。
         // Shell_TrayWnd がタスクバークリック時に一瞬フォアグラウンドを取得するため、
         // _lastForegroundWindow を直接使うと常に Shell_TrayWnd となり判定が失敗する。
         // この変数は WM_ACTIVATE / OUTOFCONTEXT の到達順に依存しない。
         if (!IsInSameWindowGroup(_lastNonTaskbarForegroundWindow, currentManagedHandle))
-        {
-            Debug.WriteLine($"[MinimizeToggle] SKIP: not same group (lastNonTaskbar=0x{_lastNonTaskbarForegroundWindow:X})");
-            return false;
-        }
-
-        bool isTaskbar = IsTaskbarPointerActivation();
-        Debug.WriteLine($"[MinimizeToggle] isTaskbarClick={isTaskbar}");
-        if (!isTaskbar)
             return false;
 
-        Debug.WriteLine("[MinimizeToggle] => MINIMIZE");
+        if (!IsTaskbarPointerActivation())
+            return false;
+
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
         {
             if (WindowState != WindowState.Minimized)
