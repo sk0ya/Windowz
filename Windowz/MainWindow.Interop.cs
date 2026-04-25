@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -24,12 +25,11 @@ public partial class MainWindow
         if (TryMinimizeWindowzFromTaskbarActivation())
             return;
 
-        bool shouldPromoteSingleManagedWindow =
-            _viewModel.SelectedTab?.TileLayout == null &&
+        bool shouldPromoteManagedWindow =
             !_viewModel.IsContentTabActive &&
             !_viewModel.IsWebTabActive;
 
-        if (shouldPromoteSingleManagedWindow)
+        if (shouldPromoteManagedWindow)
         {
             // Run after the activation input has settled so Windowz controls do
             // not lose their first click while still restoring the hosted app.
@@ -40,7 +40,6 @@ public partial class MainWindow
                     !_suppressManagedWindowPromotion &&
                     !_viewModel.IsWindowPickerOpen &&
                     !_viewModel.IsCommandPaletteOpen &&
-                    _viewModel.SelectedTab?.TileLayout == null &&
                     !_viewModel.IsContentTabActive &&
                     !_viewModel.IsWebTabActive)
                 {
@@ -123,28 +122,61 @@ public partial class MainWindow
             _viewModel.IsContentTabActive ||
             _viewModel.IsWebTabActive)
         {
+            Debug.WriteLine($"[MinimizeToggle] SKIP early: state={WindowState} suppress={_suppressManagedWindowPromotion} palette={_viewModel.IsCommandPaletteOpen} picker={_viewModel.IsWindowPickerOpen} content={_viewModel.IsContentTabActive} web={_viewModel.IsWebTabActive}");
             return false;
         }
 
         var currentManagedHandle = GetCurrentActiveManagedWindowHandle();
-        if (currentManagedHandle == IntPtr.Zero)
-            return false;
+        Debug.WriteLine($"[MinimizeToggle] managedHandle=0x{currentManagedHandle:X} lastNonTaskbarFg=0x{_lastNonTaskbarForegroundWindow:X}");
 
-        if (NormalizeRootWindowHandle(_lastForegroundBeforeWindowzActivation) !=
-            NormalizeRootWindowHandle(currentManagedHandle))
+        if (currentManagedHandle == IntPtr.Zero)
         {
+            Debug.WriteLine("[MinimizeToggle] SKIP: no managed handle");
             return false;
         }
 
-        if (!IsTaskbarPointerActivation())
+        // タスクバー系ウィンドウと Windowz 自プロセスを除外した最後のフォアグラウンドで比較する。
+        // Shell_TrayWnd がタスクバークリック時に一瞬フォアグラウンドを取得するため、
+        // _lastForegroundWindow を直接使うと常に Shell_TrayWnd となり判定が失敗する。
+        // この変数は WM_ACTIVATE / OUTOFCONTEXT の到達順に依存しない。
+        if (!IsInSameWindowGroup(_lastNonTaskbarForegroundWindow, currentManagedHandle))
+        {
+            Debug.WriteLine($"[MinimizeToggle] SKIP: not same group (lastNonTaskbar=0x{_lastNonTaskbarForegroundWindow:X})");
+            return false;
+        }
+
+        bool isTaskbar = IsTaskbarPointerActivation();
+        Debug.WriteLine($"[MinimizeToggle] isTaskbarClick={isTaskbar}");
+        if (!isTaskbar)
             return false;
 
+        Debug.WriteLine("[MinimizeToggle] => MINIMIZE");
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
         {
             if (WindowState != WindowState.Minimized)
                 WindowState = WindowState.Minimized;
         });
         return true;
+    }
+
+    private static bool IsInSameWindowGroup(IntPtr hwnd, IntPtr managed)
+    {
+        if (hwnd == IntPtr.Zero || managed == IntPtr.Zero)
+            return false;
+        if (hwnd == managed)
+            return true;
+
+        var root1 = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
+        var root2 = NativeMethods.GetAncestor(managed, NativeMethods.GA_ROOT);
+        if (root1 == IntPtr.Zero) root1 = hwnd;
+        if (root2 == IntPtr.Zero) root2 = managed;
+        if (root1 == root2)
+            return true;
+
+        // ルートが異なっても同一プロセスのウィンドウ（ポップアップ等）は同グループとみなす
+        NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid1);
+        NativeMethods.GetWindowThreadProcessId(managed, out uint pid2);
+        return pid1 != 0 && pid2 != 0 && pid1 == pid2;
     }
 
     private IntPtr GetCurrentActiveManagedWindowHandle()

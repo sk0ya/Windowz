@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -53,6 +54,9 @@ public partial class MainWindow
     private ManagedWinEventDelegate? _foregroundEventProc;
     private IntPtr _lastForegroundWindow;
     private IntPtr _lastForegroundBeforeWindowzActivation;
+    // タスクバー系ウィンドウと Windowz 自プロセスを除いた最後のフォアグラウンドウィンドウ。
+    // Shell_TrayWnd がタスクバークリック時に一瞬フォアグラウンドを取得する問題を回避するために使用。
+    private IntPtr _lastNonTaskbarForegroundWindow;
 
     // タイル表示中: 非プライマリウィンドウのプロセスごとに追加したフックの一覧
     private readonly List<IntPtr> _tileExtraHooks = new();
@@ -97,7 +101,24 @@ public partial class MainWindow
             return;
 
         if (hwnd == _mainWindowHandle)
+        {
             _lastForegroundBeforeWindowzActivation = _lastForegroundWindow;
+            Debug.WriteLine($"[FgEvent] Windowz activated: lastFgBefore=0x{_lastForegroundBeforeWindowzActivation:X} lastNonTaskbar=0x{_lastNonTaskbarForegroundWindow:X}");
+        }
+        else
+        {
+            string className = NativeMethods.GetWindowClassName(hwnd);
+            bool isTaskbar = IsTaskbarClassName(className);
+            Debug.WriteLine($"[FgEvent] fg changed: 0x{_lastForegroundWindow:X} -> 0x{hwnd:X} ({className}) taskbar={isTaskbar}");
+
+            if (!isTaskbar)
+            {
+                // Windowz 自プロセスのウィンドウ（コマンドパレット等）も除外する
+                NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+                if (pid != 0 && pid != (uint)Environment.ProcessId)
+                    _lastNonTaskbarForegroundWindow = hwnd;
+            }
+        }
 
         _lastForegroundWindow = hwnd;
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnForegroundWindowChanged(hwnd));
