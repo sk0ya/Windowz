@@ -139,7 +139,19 @@ public partial class MainWindow
 
     private void UpdateSingleManagedWindowLayout(IntPtr targetHandle, bool activate)
     {
-        MinimizeManagedWindowsExcept(targetHandle);
+        IntPtr previousHandle = IntPtr.Zero;
+        bool deferPreviousWindowMinimize =
+            activate &&
+            TryGetManagedWindowSwitchSource(targetHandle, out previousHandle);
+
+        if (deferPreviousWindowMinimize)
+        {
+            MinimizeManagedWindowsExcept(new HashSet<IntPtr> { targetHandle, previousHandle });
+        }
+        else
+        {
+            MinimizeManagedWindowsExcept(targetHandle);
+        }
 
         if (targetHandle == IntPtr.Zero)
         {
@@ -153,7 +165,14 @@ public partial class MainWindow
         bool bringToFront = activate || targetHandle != _activeManagedWindowHandle;
         if (!TryGetManagedWindowBounds(out var bounds))
         {
-            TryActivateManagedWindowAtCurrentBounds(targetHandle);
+            bool activatedAtCurrentBounds = TryActivateManagedWindowAtCurrentBounds(targetHandle, bringToFront);
+            _activeManagedWindowHandle = targetHandle;
+
+            if (deferPreviousWindowMinimize && activatedAtCurrentBounds)
+            {
+                MinimizeManagedWindowsExcept(targetHandle);
+            }
+
             return;
         }
 
@@ -166,12 +185,41 @@ public partial class MainWindow
             bringToFront);
 
         _activeManagedWindowHandle = targetHandle;
+
+        if (deferPreviousWindowMinimize &&
+            NativeMethods.IsWindow(targetHandle) &&
+            NativeMethods.IsWindowVisible(targetHandle) &&
+            !NativeMethods.IsIconic(targetHandle))
+        {
+            MinimizeManagedWindowsExcept(targetHandle);
+        }
     }
 
-    private void TryActivateManagedWindowAtCurrentBounds(IntPtr targetHandle)
+    private bool TryGetManagedWindowSwitchSource(IntPtr targetHandle, out IntPtr previousHandle)
+    {
+        previousHandle = IntPtr.Zero;
+
+        if (targetHandle == IntPtr.Zero ||
+            _activeManagedWindowHandle == IntPtr.Zero ||
+            _activeManagedWindowHandle == targetHandle ||
+            !_windowManager.IsManaged(_activeManagedWindowHandle) ||
+            !NativeMethods.IsWindow(_activeManagedWindowHandle))
+        {
+            return false;
+        }
+
+        var previousTab = FindExternallyManagedTabByHandle(_activeManagedWindowHandle);
+        if (previousTab?.TileLayout != null)
+            return false;
+
+        previousHandle = _activeManagedWindowHandle;
+        return true;
+    }
+
+    private bool TryActivateManagedWindowAtCurrentBounds(IntPtr targetHandle, bool bringToFront)
     {
         if (!NativeMethods.TryGetVisibleWindowRect(targetHandle, out var currentRect))
-            return;
+            return false;
 
         ActivateManagedWindow(
             targetHandle,
@@ -179,7 +227,11 @@ public partial class MainWindow
             currentRect.Top,
             Math.Max(1, currentRect.Width),
             Math.Max(1, currentRect.Height),
-            bringToFront: false);
+            bringToFront);
+
+        return NativeMethods.IsWindow(targetHandle) &&
+               NativeMethods.IsWindowVisible(targetHandle) &&
+               !NativeMethods.IsIconic(targetHandle);
     }
 
     private void ActivateManagedWindow(
