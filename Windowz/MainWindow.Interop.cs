@@ -112,6 +112,17 @@ public partial class MainWindow
         return root == IntPtr.Zero ? hwnd : root;
     }
 
+    private static IntPtr NormalizeRootOwnerWindowHandle(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+            return IntPtr.Zero;
+
+        var rootOwner = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOTOWNER);
+        return rootOwner != IntPtr.Zero
+            ? rootOwner
+            : NormalizeRootWindowHandle(hwnd);
+    }
+
     private bool TryMinimizeWindowzFromTaskbarActivation()
     {
         if (WindowState == WindowState.Minimized ||

@@ -176,6 +176,7 @@ internal static class NativeMethods
     public static extern bool IsWindow(IntPtr hWnd);
 
     public const uint GA_ROOT = 2;
+    public const uint GA_ROOTOWNER = 3;
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);

@@ -123,7 +123,7 @@ public partial class MainWindow
         if (hwnd == _mainWindowHandle)
             return;
 
-        var matchingTab = FindExternallyManagedTabByHandle(hwnd);
+        var matchingTab = FindExternallyManagedTabForForegroundWindow(hwnd);
         if (matchingTab == null)
             return;
 
@@ -166,6 +166,37 @@ public partial class MainWindow
         {
             if (_tabManager.TryGetExternallyManagedWindowHandle(tab, out var handle) && handle == hwnd)
                 return tab;
+        }
+
+        return null;
+    }
+
+    private Models.TabItem? FindExternallyManagedTabForForegroundWindow(IntPtr hwnd)
+    {
+        var exactMatch = FindExternallyManagedTabByHandle(hwnd);
+        if (exactMatch != null)
+            return exactMatch;
+
+        // タスクバー復帰や Alt+Tab では、追跡しているトップレベル HWND ではなく
+        // その owner/popup 側が前景化されることがある。root-owner で突き合わせて
+        // どの管理タブに属する前景化かを判定する。
+        var normalizedForegroundHandle = NormalizeRootOwnerWindowHandle(hwnd);
+        if (normalizedForegroundHandle == IntPtr.Zero)
+            return null;
+
+        foreach (var tab in _tabManager.Tabs)
+        {
+            if (!_tabManager.TryGetExternallyManagedWindowHandle(tab, out var managedHandle) ||
+                managedHandle == IntPtr.Zero)
+            {
+                continue;
+            }
+
+            if (managedHandle == normalizedForegroundHandle ||
+                NormalizeRootOwnerWindowHandle(managedHandle) == normalizedForegroundHandle)
+            {
+                return tab;
+            }
         }
 
         return null;
