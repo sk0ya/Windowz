@@ -27,6 +27,50 @@ internal static class Program
         Run("DetachTabFromTile_DissolvesTwoTabGroup", DetachTabFromTile_DissolvesTwoTabGroup);
         Run("GetDefaultBindings_CloseTabUsesCtrlShiftW", GetDefaultBindings_CloseTabUsesCtrlShiftW);
 
+        // ── アクティブ状態の遷移テスト ──
+        Run("ActiveTab_SetNewTab_OldTabIsDeselected", ActivationTests.ActiveTab_SetNewTab_OldTabIsDeselected);
+        Run("ActiveTab_ExactlyOneTabIsSelected_AfterSwitch", ActivationTests.ActiveTab_ExactlyOneTabIsSelected_AfterSwitch);
+        Run("ActiveTab_SetSameTabTwice_NoExtraEventFired", ActivationTests.ActiveTab_SetSameTabTwice_NoExtraEventFired);
+        Run("ActiveTabChanged_Event_FiresWithCorrectTab", ActivationTests.ActiveTabChanged_Event_FiresWithCorrectTab);
+        Run("ActiveTabChanged_Event_FiresOncePerChange", ActivationTests.ActiveTabChanged_Event_FiresOncePerChange);
+        Run("ActiveTabChanged_Event_FiresWithNullWhenCleared", ActivationTests.ActiveTabChanged_Event_FiresWithNullWhenCleared);
+        Run("RemoveActiveTab_FirstOfThree_SelectsSecondTab", ActivationTests.RemoveActiveTab_FirstOfThree_SelectsSecondTab);
+        Run("RemoveActiveTab_LastOfThree_SelectsNewLastTab", ActivationTests.RemoveActiveTab_LastOfThree_SelectsNewLastTab);
+        Run("RemoveActiveTab_MiddleTab_SelectsNextTab", ActivationTests.RemoveActiveTab_MiddleTab_SelectsNextTab);
+        Run("RemoveActiveTab_OnlyTab_ActiveBecomesNull", ActivationTests.RemoveActiveTab_OnlyTab_ActiveBecomesNull);
+        Run("RemoveNonActiveTab_DoesNotChangeActiveTab", ActivationTests.RemoveNonActiveTab_DoesNotChangeActiveTab);
+        Run("RemoveActiveTab_IsSelectedClearedOnRemovedTab", ActivationTests.RemoveActiveTab_IsSelectedClearedOnRemovedTab);
+        Run("SelectNextTab_WrapsAroundFromLastToFirst", ActivationTests.SelectNextTab_WrapsAroundFromLastToFirst);
+        Run("SelectPreviousTab_WrapsAroundFromFirstToLast", ActivationTests.SelectPreviousTab_WrapsAroundFromFirstToLast);
+        Run("SelectNextTab_SingleTab_StaysOnSameTab", ActivationTests.SelectNextTab_SingleTab_StaysOnSameTab);
+        Run("SelectPreviousTab_SingleTab_StaysOnSameTab", ActivationTests.SelectPreviousTab_SingleTab_StaysOnSameTab);
+        Run("SelectTab_ByIndex_ActivatesCorrectTab", ActivationTests.SelectTab_ByIndex_ActivatesCorrectTab);
+        Run("SelectTab_OutOfRangeIndex_DoesNotChangeActiveTab", ActivationTests.SelectTab_OutOfRangeIndex_DoesNotChangeActiveTab);
+        Run("AddContentTab_WithActivateTrue_NewTabIsActive", ActivationTests.AddContentTab_WithActivateTrue_NewTabIsActive);
+        Run("AddContentTab_WithActivateFalse_ExistingTabStaysActive", ActivationTests.AddContentTab_WithActivateFalse_ExistingTabStaysActive);
+        Run("AddContentTab_DuplicateKey_ActivatesExistingTab", ActivationTests.AddContentTab_DuplicateKey_ActivatesExistingTab);
+        Run("MoveTab_ActiveTabRemainsSameAfterReorder", ActivationTests.MoveTab_ActiveTabRemainsSameAfterReorder);
+
+        // ── 実 Win32 ウィンドウを使ったインテグレーションテスト ──
+        Run("TryManageWindow_ValidHwnd_ReturnsTrue",              WindowManagerIntegrationTests.TryManageWindow_ValidHwnd_ReturnsTrue);
+        Run("TryManageWindow_ZeroHandle_ReturnsFalse",            WindowManagerIntegrationTests.TryManageWindow_ZeroHandle_ReturnsFalse);
+        Run("TryManageWindow_AlreadyManagedHandle_ReturnsFalse",  WindowManagerIntegrationTests.TryManageWindow_AlreadyManagedHandle_ReturnsFalse);
+        Run("ForgetManagedWindow_RemovesFromTracking",            WindowManagerIntegrationTests.ForgetManagedWindow_RemovesFromTracking);
+        Run("ActivateManagedWindow_SetsWindowToRequestedVisibleRect", WindowManagerIntegrationTests.ActivateManagedWindow_SetsWindowToRequestedVisibleRect);
+        Run("ActivateManagedWindow_ShowsMinimizedWindow",         WindowManagerIntegrationTests.ActivateManagedWindow_ShowsMinimizedWindow);
+        Run("ReleaseManagedWindow_RestoresOriginalPosition",      WindowManagerIntegrationTests.ReleaseManagedWindow_RestoresOriginalPosition);
+        Run("ReleaseManagedWindow_NotManaged_DoesNotMoveWindow",  WindowManagerIntegrationTests.ReleaseManagedWindow_NotManaged_DoesNotMoveWindow);
+        Run("MinimizeManagedWindow_MakesWindowIconic",            WindowManagerIntegrationTests.MinimizeManagedWindow_MakesWindowIconic);
+        Run("MinimizeManagedWindow_NotManaged_DoesNotMinimize",   WindowManagerIntegrationTests.MinimizeManagedWindow_NotManaged_DoesNotMinimize);
+        Run("MinimizeAllManagedWindowsExcept_OnlyMinimizesOthers",WindowManagerIntegrationTests.MinimizeAllManagedWindowsExcept_OnlyMinimizesOthers);
+        Run("AddTab_WithRealWindow_RegistersHandleAndSetsActiveTab", WindowManagerIntegrationTests.AddTab_WithRealWindow_RegistersHandleAndSetsActiveTab);
+        Run("AddTab_SameHwndTwice_ReturnsSameTab",                WindowManagerIntegrationTests.AddTab_SameHwndTwice_ReturnsSameTab);
+        Run("RemoveTab_WithRealWindow_ReleasesWindowToOriginalPosition", WindowManagerIntegrationTests.RemoveTab_WithRealWindow_ReleasesWindowToOriginalPosition);
+        Run("RemoveTab_WithRealWindow_TabIsNoLongerManaged",      WindowManagerIntegrationTests.RemoveTab_WithRealWindow_TabIsNoLongerManaged);
+        Run("HandleToTab_Lookup_ReturnsCorrectTabForEachWindow",  WindowManagerIntegrationTests.HandleToTab_Lookup_ReturnsCorrectTabForEachWindow);
+        Run("ForegroundHook_AfterSetForeground_CallbackReceivesCorrectHandle", WindowManagerIntegrationTests.ForegroundHook_AfterSetForeground_CallbackReceivesCorrectHandle);
+        Run("ForegroundHook_SwitchBetweenTwoWindows_BothHandlesReceived", WindowManagerIntegrationTests.ForegroundHook_SwitchBetweenTwoWindows_BothHandlesReceived);
+
         Console.WriteLine(_failed == 0
             ? "All tests passed."
             : $"{_failed} test(s) failed.");
