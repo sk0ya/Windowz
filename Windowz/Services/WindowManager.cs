@@ -173,15 +173,18 @@ public class WindowManager
         width = Math.Max(1, width);
         height = Math.Max(1, height);
 
-        // ドラッグ終了後に同期 SetWindowPos で正確な位置を確定するので非同期キャッシュをクリア
-        _lastAsyncPos.Remove(handle);
+        // ウィンドウがすでに表示済みかどうかを確認する。
+        // ShowWindowNoAnimation (DwmSetWindowAttribute x2 + ShowWindow) は最小化または
+        // 非表示の場合のみ必要。表示済みウィンドウへの SW_SHOWNOACTIVATE は実質 no-op だが、
+        // クロスプロセス呼び出しコストが毎回かかるため、スキップする。
+        bool alreadyVisible = !NativeMethods.IsIconic(handle) && NativeMethods.IsWindowVisible(handle);
 
-        // SW_SHOWNOACTIVATE: 最小化ウィンドウも復元するが、フォーカスは奪わない。
-        // SW_SHOW / SW_RESTORE はウィンドウをアクティブ化するため、
-        // タスクバークリックで Windowz を前面に出しても管理ウィンドウにフォーカスが
-        // 移ってしまう問題の原因になる。bringToFront=true の場合は後続の
-        // ForceForegroundWindow で明示的にフォーカスを渡す。アニメーションなしで復元。
-        ShowWindowNoAnimation(handle, NativeMethods.SW_SHOWNOACTIVATE);
+        if (!alreadyVisible)
+        {
+            // SW_SHOWNOACTIVATE: 最小化ウィンドウも復元するが、フォーカスは奪わない。
+            // bringToFront=true の場合は後続の ForceForegroundWindow で明示的にフォーカスを渡す。
+            ShowWindowNoAnimation(handle, NativeMethods.SW_SHOWNOACTIVATE);
+        }
 
         ConvertVisibleBoundsToWindowBounds(
             handle,
@@ -196,9 +199,35 @@ public class WindowManager
 
         // setZOrder=false のとき (タイル表示) は呼び出し元が RaiseTileWindowsAboveWindowz で
         // Z-order を一括設定するため、ここでは位置・サイズのみ更新する。
-        uint flags = NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW;
+        uint flags = NativeMethods.SWP_NOACTIVATE;
         if (!setZOrder)
             flags |= NativeMethods.SWP_NOZORDER;
+
+        if (!bringToFront && alreadyVisible)
+        {
+            // 位置・サイズ更新のみのパス (リサイズ・LocationChanged 等の高頻度呼び出し):
+            // SWP_ASYNCWINDOWPOS でポストして UI スレッドをブロックしない。
+            // _lastAsyncPos で重複ポストを抑制し、キュー蓄積を防ぐ。
+            if (_lastAsyncPos.TryGetValue(handle, out var last) &&
+                last.x == windowX && last.y == windowY && last.w == windowWidth && last.h == windowHeight)
+            {
+                // Z-order / フォアグラウンド操作はないのでそのまま返る
+                return;
+            }
+
+            _lastAsyncPos[handle] = (windowX, windowY, windowWidth, windowHeight);
+            NativeMethods.SetWindowPos(
+                handle,
+                setZOrder ? NativeMethods.HWND_TOP : IntPtr.Zero,
+                windowX, windowY, windowWidth, windowHeight,
+                flags | NativeMethods.SWP_ASYNCWINDOWPOS);
+            return;
+        }
+
+        // アクティブ化・復元パス: 同期 SetWindowPos で確定する。
+        // 次回の MoveManagedWindowAsync が古い位置をキャッシュヒットしないよう _lastAsyncPos をクリア。
+        _lastAsyncPos.Remove(handle);
+        flags |= NativeMethods.SWP_SHOWWINDOW;
 
         bool positioned = NativeMethods.SetWindowPos(
             handle,
