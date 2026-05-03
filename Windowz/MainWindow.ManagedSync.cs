@@ -772,7 +772,12 @@ public partial class MainWindow
         if (!_tileWindowFractionIndex.TryGetValue(hwnd, out int fractionIdx)) return;
 
         var tile = _viewModel.SelectedTab?.TileLayout;
-        if (tile == null) return;
+        var pinnedHalf = _tabManager.PinnedHalf;
+        bool isPinnedHalfContext = tile == null &&
+            pinnedHalf != null &&
+            _viewModel.SelectedTab != pinnedHalf.PinnedTab;
+
+        if (tile == null && !isPinnedHalfContext) return;
 
         if (_viewModel.IsWindowPickerOpen || _viewModel.IsCommandPaletteOpen ||
             _viewModel.IsContentTabActive || _viewModel.IsWebTabActive)
@@ -787,7 +792,9 @@ public partial class MainWindow
 
         if (!NativeMethods.TryGetVisibleWindowRect(hwnd, out var rect)) return;
 
-        var fractions = tile.GetLayoutFractions();
+        var fractions = tile != null
+            ? tile.GetLayoutFractions()
+            : pinnedHalf!.GetLayoutFractions();
         if (fractionIdx >= fractions.Length) return;
 
         if (!TryGetManagedWindowOffsets(

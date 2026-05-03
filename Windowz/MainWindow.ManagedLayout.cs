@@ -322,7 +322,17 @@ public partial class MainWindow
 
         // アクティブタブ側を配置
         if (hasActiveTab && activeTab != null)
+        {
             PlaceActiveHalfSlot(activeTab, fractions[1], totalBounds, activate, positionOnlyUpdate);
+
+            // ピン留め側ウィンドウの移動にも Windowz が追従できるよう extra hook を設定する
+            if (!pinnedTab.IsContentTab && !pinnedTab.IsWebTab &&
+                _tabManager.TryGetExternallyManagedWindowHandle(pinnedTab, out var pinnedHandle) &&
+                pinnedHandle != IntPtr.Zero)
+            {
+                SetupTileExtraHooks([(pinnedHandle, 0)]);
+            }
+        }
         else
         {
             RemoveManagedWindowSyncHooks();
