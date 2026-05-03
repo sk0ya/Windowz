@@ -280,11 +280,30 @@ public partial class MainWindow
         double newTop  = _dragWindowOriginY + (cursorY - _dragCursorOriginY) / dpiY;
 
         const double epsilon = 0.5;
-        if (Math.Abs(Left - newLeft) < epsilon && Math.Abs(Top - newTop) < epsilon)
+        bool leftChanged = Math.Abs(Left - newLeft) >= epsilon;
+        bool topChanged  = Math.Abs(Top  - newTop)  >= epsilon;
+        if (!leftChanged && !topChanged)
             return;
 
-        Left = newLeft;
-        Top  = newTop;
+        if (leftChanged && topChanged && _mainWindowHandle != IntPtr.Zero)
+        {
+            // 斜め方向ドラッグ: WPF の Left/Top を個別に設定すると SetWindowPos が2回呼ばれ
+            // LocationChanged → AsyncMoveManagedWindowsDuringDrag が2回発火する。
+            // SetWindowPos で一括更新すれば1回で済み、管理ウィンドウへの非同期 SWP も半減する。
+            // WPF は WM_WINDOWPOSCHANGED を受けて Left/Top を自動更新するため状態は同期される。
+            NativeMethods.SetWindowPos(
+                _mainWindowHandle,
+                IntPtr.Zero,
+                (int)Math.Round(newLeft * dpiX),
+                (int)Math.Round(newTop  * dpiY),
+                0, 0,
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+        }
+        else
+        {
+            if (leftChanged) Left = newLeft;
+            if (topChanged)  Top  = newTop;
+        }
     }
 
     private (double dpiX, double dpiY) GetDpiScaleForPoint(int x, int y)
