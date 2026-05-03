@@ -50,6 +50,11 @@ internal static class Program
         Run("AddContentTab_WithActivateFalse_ExistingTabStaysActive", ActivationTests.AddContentTab_WithActivateFalse_ExistingTabStaysActive);
         Run("AddContentTab_DuplicateKey_ActivatesExistingTab", ActivationTests.AddContentTab_DuplicateKey_ActivatesExistingTab);
         Run("MoveTab_ActiveTabRemainsSameAfterReorder", ActivationTests.MoveTab_ActiveTabRemainsSameAfterReorder);
+        Run("PinTab_WithDifferentActiveTab_DoesNotChangeActiveTab", ActivationTests.PinTab_WithDifferentActiveTab_DoesNotChangeActiveTab);
+        Run("PinnedHalf_SwitchActiveToWebTab_ActiveTabBecomesWebTab", ActivationTests.PinnedHalf_SwitchActiveToWebTab_ActiveTabBecomesWebTab);
+        Run("PinnedHalf_SelectPinnedTabItself_SwitchesActiveToIt", ActivationTests.PinnedHalf_SelectPinnedTabItself_SwitchesActiveToIt);
+        Run("PinnedHalf_ActiveTabDiffersFromPinnedTab_ConditionForFractionInverseCalc", ActivationTests.PinnedHalf_ActiveTabDiffersFromPinnedTab_ConditionForFractionInverseCalc);
+        Run("PinnedHalf_RightSide_FractionsAreCorrect", ActivationTests.PinnedHalf_RightSide_FractionsAreCorrect);
 
         // ── 実 Win32 ウィンドウを使ったインテグレーションテスト ──
         Run("TryManageWindow_ValidHwnd_ReturnsTrue",              WindowManagerIntegrationTests.TryManageWindow_ValidHwnd_ReturnsTrue);

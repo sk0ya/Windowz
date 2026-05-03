@@ -488,6 +488,164 @@ internal static class ActivationTests
     }
 
     // ─────────────────────────────────────────
+    // PinnedHalf とアクティブタブの遷移
+    // ─────────────────────────────────────────
+
+    internal static void PinTab_WithDifferentActiveTab_DoesNotChangeActiveTab()
+    {
+        using var scope = new TempSettingsScope();
+        var mgr = CreateTabManager(scope.Manager);
+        try
+        {
+            var appA = ContentTab("AppA");
+            var appB = ContentTab("AppB");
+            mgr.Tabs.Add(appA);
+            mgr.Tabs.Add(appB);
+            mgr.ActiveTab = appB;
+
+            mgr.PinTab(appA, Models.PinnedSide.Left);
+
+            Assert(mgr.ActiveTab == appB,
+                "PinTab 後もアクティブタブは変わらないべき (別タブが active な場合)。");
+            Assert(mgr.PinnedHalf?.PinnedTab == appA,
+                "PinnedHalf.PinnedTab は固定されたタブであるべき。");
+        }
+        finally { mgr.StopCleanupTimer(); }
+    }
+
+    internal static void PinnedHalf_SwitchActiveToWebTab_ActiveTabBecomesWebTab()
+    {
+        // バグ再現シナリオ: AppA をピン留め → AppB アクティブ → webTab に切り替え
+        // 修正前: AppB 最小化後に AppA がフォアグラウンドを取得し、UI 層が
+        //         ActiveTab = appA を誤設定して webTab 表示が失われていた。
+        // 修正後: OnForegroundWindowChanged で PinnedHalf.PinnedTab == matchingTab の
+        //         場合は ActiveTab 変更をスキップする。
+        using var scope = new TempSettingsScope();
+        var mgr = CreateTabManager(scope.Manager);
+        try
+        {
+            var appA = ContentTab("AppA");
+            var appB = ContentTab("AppB");
+            var webTab = new Models.TabItem { WebUrl = "https://example.com", Title = "Web" };
+            mgr.Tabs.Add(appA);
+            mgr.Tabs.Add(appB);
+            mgr.Tabs.Add(webTab);
+
+            mgr.ActiveTab = appB;
+            mgr.PinTab(appA, Models.PinnedSide.Left);
+
+            mgr.ActiveTab = webTab;
+
+            Assert(mgr.ActiveTab == webTab,
+                "ピン留め中に webTab に切り替えた後、ActiveTab は webTab であるべき。");
+            Assert(mgr.PinnedHalf?.PinnedTab == appA,
+                "ピン留めは解除されていないべき。");
+            Assert(!appA.IsSelected,
+                "ピン留めタブ AppA は選択状態でないべき。");
+            Assert(webTab.IsSelected,
+                "webTab は選択状態であるべき。");
+        }
+        finally { mgr.StopCleanupTimer(); }
+    }
+
+    internal static void PinnedHalf_SelectPinnedTabItself_SwitchesActiveToIt()
+    {
+        using var scope = new TempSettingsScope();
+        var mgr = CreateTabManager(scope.Manager);
+        try
+        {
+            var appA = ContentTab("AppA");
+            var appB = ContentTab("AppB");
+            mgr.Tabs.Add(appA);
+            mgr.Tabs.Add(appB);
+
+            mgr.ActiveTab = appB;
+            mgr.PinTab(appA, Models.PinnedSide.Left);
+
+            // ピン留めタブ自身を明示的に選択できる (シングルウィンドウ全画面モード)
+            mgr.ActiveTab = appA;
+
+            Assert(mgr.ActiveTab == appA,
+                "ピン留めタブ自身をアクティブにできるべき。");
+            Assert(appA.IsSelected, "AppA は IsSelected になるべき。");
+            Assert(!appB.IsSelected, "AppB は IsSelected でなくなるべき。");
+        }
+        finally { mgr.StopCleanupTimer(); }
+    }
+
+    // ─────────────────────────────────────────
+    // ドラッグ中の逆算条件 (SyncWindFromManagedWindow)
+    // ─────────────────────────────────────────
+
+    /// <summary>
+    /// ピン留め半面モードでは PinnedHalf.PinnedTab と ActiveTab の両方が確定している。
+    /// SyncWindFromManagedWindow はアクティブスロット (fractions[1]) を使って Windowz 位置を
+    /// 逆算しなければならない。else ブランチに落ちると activeWindow の幅 (半分) を
+    /// フルコンテンツ幅と誤認して Windowz が縮小・誤移動するバグの前提条件を確認するテスト。
+    /// </summary>
+    internal static void PinnedHalf_ActiveTabDiffersFromPinnedTab_ConditionForFractionInverseCalc()
+    {
+        using var scope = new TempSettingsScope();
+        var mgr = CreateTabManager(scope.Manager);
+        try
+        {
+            var appA = ContentTab("AppA");
+            var appB = ContentTab("AppB");
+            mgr.Tabs.Add(appA);
+            mgr.Tabs.Add(appB);
+
+            mgr.ActiveTab = appB;
+            mgr.PinTab(appA, Models.PinnedSide.Left);
+
+            // SyncWindFromManagedWindow で isPinnedHalfActive=true になる条件:
+            //   PinnedHalf != null && SelectedTab != PinnedHalf.PinnedTab
+            Assert(mgr.PinnedHalf != null,
+                "PinTab 後 PinnedHalf は非 null であるべき。");
+            Assert(mgr.PinnedHalf!.PinnedTab == appA,
+                "PinnedTab は appA であるべき。");
+            Assert(mgr.ActiveTab == appB,
+                "ActiveTab は appB のままであるべき。");
+            Assert(mgr.ActiveTab != mgr.PinnedHalf.PinnedTab,
+                "ActiveTab != PinnedTab → ピン留め半面のフラクション逆算ルートに入る条件が成立する。");
+
+            // fractions[1] が right-half を示すことを確認
+            var fractions = mgr.PinnedHalf.GetLayoutFractions();
+            Assert(fractions.Length == 2, "ピン留め半面のフラクション数は 2 であるべき。");
+            Assert(fractions[0].Left == 0.0 && fractions[0].Width == 0.5,
+                "fractions[0] は左半分 (Left=0, Width=0.5) であるべき。");
+            Assert(fractions[1].Left == 0.5 && fractions[1].Width == 0.5,
+                "fractions[1] は右半分 (Left=0.5, Width=0.5) であるべき。アクティブスロットの逆算に使う。");
+        }
+        finally { mgr.StopCleanupTimer(); }
+    }
+
+    /// <summary>
+    /// 右半分ピン留めの場合、fractions[0] が右半分、fractions[1] が左半分になることを確認。
+    /// </summary>
+    internal static void PinnedHalf_RightSide_FractionsAreCorrect()
+    {
+        using var scope = new TempSettingsScope();
+        var mgr = CreateTabManager(scope.Manager);
+        try
+        {
+            var appA = ContentTab("AppA");
+            var appB = ContentTab("AppB");
+            mgr.Tabs.Add(appA);
+            mgr.Tabs.Add(appB);
+
+            mgr.ActiveTab = appB;
+            mgr.PinTab(appA, Models.PinnedSide.Right);
+
+            var fractions = mgr.PinnedHalf!.GetLayoutFractions();
+            Assert(fractions[0].Left == 0.5 && fractions[0].Width == 0.5,
+                "右ピン留めの fractions[0] は右半分 (Left=0.5, Width=0.5) であるべき。");
+            Assert(fractions[1].Left == 0.0 && fractions[1].Width == 0.5,
+                "右ピン留めの fractions[1] は左半分 (Left=0, Width=0.5) であるべき。");
+        }
+        finally { mgr.StopCleanupTimer(); }
+    }
+
+    // ─────────────────────────────────────────
     // ヘルパー
     // ─────────────────────────────────────────
 

@@ -238,12 +238,12 @@
                     <ContextMenu Tag="{Binding}" Opened="TabContextMenu_Opened">
                         <MenuItem Header="Startup に登録" Click="ToggleStartup_Click" Tag="{Binding}"/>
                         <MenuItem Header="QuickLaunch に登録" Click="ToggleQuickLaunch_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="RegistrationSep"/>
                         <MenuItem Header="ファイルパスをコピー" Click="CopyExePath_Click" Tag="{Binding}"/>
                         <MenuItem Header="エクスプローラーで開く" Click="OpenInExplorer_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="FileOpsSep"/>
                         <MenuItem Header="タブ名を変更" Click="RenameTab_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="AutoEmbedSep"/>
                         <MenuItem Header="自動埋め込みから除外" Click="ToggleAutoEmbedExclusion_Click" Tag="{Binding}"/>
                         <Separator Tag="TileSeparator"/>
                         <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
@@ -252,6 +252,7 @@
                         <MenuItem Header="左半分に固定" Click="PinTabLeft_Click" Tag="{Binding}"/>
                         <MenuItem Header="右半分に固定" Click="PinTabRight_Click" Tag="{Binding}"/>
                         <MenuItem Header="固定を解除" Click="UnpinTab_Click" Tag="{Binding}"/>
+                        <Separator Tag="CloseSep"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>
@@ -298,12 +299,12 @@
                     <ContextMenu Tag="{Binding}" Opened="TabContextMenu_Opened">
                         <MenuItem Header="Startup に登録" Click="ToggleStartup_Click" Tag="{Binding}"/>
                         <MenuItem Header="QuickLaunch に登録" Click="ToggleQuickLaunch_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="RegistrationSep"/>
                         <MenuItem Header="ファイルパスをコピー" Click="CopyExePath_Click" Tag="{Binding}"/>
                         <MenuItem Header="エクスプローラーで開く" Click="OpenInExplorer_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="FileOpsSep"/>
                         <MenuItem Header="タブ名を変更" Click="RenameTab_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="AutoEmbedSep"/>
                         <MenuItem Header="自動埋め込みから除外" Click="ToggleAutoEmbedExclusion_Click" Tag="{Binding}"/>
                         <Separator Tag="TileSeparator"/>
                         <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
@@ -312,6 +313,7 @@
                         <MenuItem Header="左半分に固定" Click="PinTabLeft_Click" Tag="{Binding}"/>
                         <MenuItem Header="右半分に固定" Click="PinTabRight_Click" Tag="{Binding}"/>
                         <MenuItem Header="固定を解除" Click="UnpinTab_Click" Tag="{Binding}"/>
+                        <Separator Tag="CloseSep"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>
@@ -365,12 +367,12 @@
                     <ContextMenu Tag="{Binding}" Opened="TabContextMenu_Opened">
                         <MenuItem Header="Startup に登録" Click="ToggleStartup_Click" Tag="{Binding}"/>
                         <MenuItem Header="QuickLaunch に登録" Click="ToggleQuickLaunch_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="RegistrationSep"/>
                         <MenuItem Header="ファイルパスをコピー" Click="CopyExePath_Click" Tag="{Binding}"/>
                         <MenuItem Header="エクスプローラーで開く" Click="OpenInExplorer_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="FileOpsSep"/>
                         <MenuItem Header="タブ名を変更" Click="RenameTab_Click" Tag="{Binding}"/>
-                        <Separator/>
+                        <Separator Tag="AutoEmbedSep"/>
                         <MenuItem Header="自動埋め込みから除外" Click="ToggleAutoEmbedExclusion_Click" Tag="{Binding}"/>
                         <Separator Tag="TileSeparator"/>
                         <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
@@ -379,6 +381,7 @@
                         <MenuItem Header="左半分に固定" Click="PinTabLeft_Click" Tag="{Binding}"/>
                         <MenuItem Header="右半分に固定" Click="PinTabRight_Click" Tag="{Binding}"/>
                         <MenuItem Header="固定を解除" Click="UnpinTab_Click" Tag="{Binding}"/>
+                        <Separator Tag="CloseSep"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>

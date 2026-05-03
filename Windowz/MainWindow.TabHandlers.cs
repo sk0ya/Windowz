@@ -237,19 +237,27 @@ public partial class MainWindow
         bool canUntile = tab.TileLayout != null;
         bool showTileSeparator = canTile || canUntile;
 
-        bool canPin = isWindowTab || tab.IsWebTab || tab.IsContentTab;
+        bool canPin = isWindowTab || tab.IsWebTab;
         bool canUnpin = _tabManager.PinnedHalf != null;
         bool showPinSeparator = canPin || canUnpin;
+
+        bool autoEmbedItemVisible = isWindowTab && !string.IsNullOrEmpty(exePath)
+                                    && _settingsManager.Settings.AutoEmbedNewWindows;
+        bool hasItemsAboveTile = isWindowTab || tab.IsWebTab;
 
         foreach (var rawItem in menu.Items)
         {
             if (rawItem is Separator sep)
             {
-                var tagStr = sep.Tag?.ToString();
-                if (tagStr == "TileSeparator")
-                    sep.Visibility = showTileSeparator ? Visibility.Visible : Visibility.Collapsed;
-                else if (tagStr == "PinSeparator")
-                    sep.Visibility = showPinSeparator ? Visibility.Visible : Visibility.Collapsed;
+                sep.Visibility = sep.Tag?.ToString() switch
+                {
+                    "RegistrationSep" => isWindowTab ? Visibility.Visible : Visibility.Collapsed,
+                    "FileOpsSep"      => isWindowTab ? Visibility.Visible : Visibility.Collapsed,
+                    "AutoEmbedSep"    => autoEmbedItemVisible ? Visibility.Visible : Visibility.Collapsed,
+                    "TileSeparator"   => (showTileSeparator && hasItemsAboveTile) ? Visibility.Visible : Visibility.Collapsed,
+                    "PinSeparator"    => showPinSeparator ? Visibility.Visible : Visibility.Collapsed,
+                    _                 => Visibility.Visible,
+                };
                 continue;
             }
 

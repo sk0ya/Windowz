@@ -127,6 +127,13 @@ public partial class MainWindow
         if (matchingTab == null)
             return;
 
+        // ピン留め中: ピン留めタブのウィンドウがフォアグラウンドになっても
+        // ActiveTab を変更しない。アクティブスロット(右/左半面)のアプリが
+        // 最小化された際に OS がピン留めウィンドウへフォーカスを移すことがあり、
+        // そのまま ActiveTab を上書きすると web/content タブ選択が失われる。
+        if (_tabManager.PinnedHalf?.PinnedTab == matchingTab)
+            return;
+
         bool isSameTab = matchingTab == _tabManager.ActiveTab;
 
         if (!isSameTab)
@@ -591,9 +598,14 @@ public partial class MainWindow
             return;
         }
 
-        // タイル表示中: ドラッグ操作中はスキップ（MOVESIZEEND 後に同期する）
+        // タイル・ピン留め半面: ドラッグ操作中はスキップ（MOVESIZEEND 後に同期する）
         var tile = _viewModel.SelectedTab?.TileLayout;
         if (tile != null && _managedWindowMoveOrSizeInProgress)
+            return;
+
+        var pinnedHalf = _tabManager.PinnedHalf;
+        bool isPinnedHalfActive = pinnedHalf != null && _viewModel.SelectedTab != pinnedHalf.PinnedTab;
+        if (isPinnedHalfActive && _managedWindowMoveOrSizeInProgress)
             return;
 
         if (!NativeMethods.IsWindow(_managedSyncWindowHandle))
@@ -688,6 +700,47 @@ public partial class MainWindow
                     }
                 }
             }
+            else if (isPinnedHalfActive)
+            {
+                // ピン留め半面: アクティブスロット (fractions[1]) の割合から Windowz の位置・サイズを逆算
+                // else ブランチ (シングルウィンドウ想定) に落ちると、アクティブウィンドウの
+                // 幅 = コンテンツエリア半分を全幅と誤認し Windowz が縮小・誤移動する。
+                var pinnedFractions = pinnedHalf!.GetLayoutFractions();
+                var f = pinnedFractions[1];
+                GetTileSlotGapInsets(
+                    f,
+                    TileSplitterGapDip * dpiScaleX,
+                    TileSplitterGapDip * dpiScaleY,
+                    out double leftGap,
+                    out double topGap,
+                    out double rightGap,
+                    out double bottomGap);
+
+                double nextContainerWidthPx = WindowHostContainer.ActualWidth * dpiScaleX;
+                double nextContainerHeightPx = WindowHostContainer.ActualHeight * dpiScaleY;
+
+                if (f.Width > 0)
+                    nextContainerWidthPx = (managedRect.Width + leftGap + rightGap) / f.Width;
+
+                if (f.Height > 0)
+                    nextContainerHeightPx = (managedRect.Height + topGap + bottomGap) / f.Height;
+
+                nextLeft -= leftGap + f.Left * nextContainerWidthPx;
+                nextTop  -= topGap  + f.Top  * nextContainerHeightPx;
+                if (Math.Abs(Left - nextLeft) > epsilon) { Left = nextLeft; movedWindowz = true; }
+                if (Math.Abs(Top  - nextTop)  > epsilon) { Top  = nextTop;  movedWindowz = true; }
+
+                if (f.Width > 0)
+                {
+                    double nextW = Math.Max(MinWidth, nextContainerWidthPx / dpiScaleX + frameExtraWidthDip);
+                    if (Math.Abs(Width - nextW) > epsilon) { Width = nextW; movedWindowz = true; resizedWindowz = true; }
+                }
+                if (f.Height > 0)
+                {
+                    double nextH = Math.Max(MinHeight, nextContainerHeightPx / dpiScaleY + frameExtraHeightDip);
+                    if (Math.Abs(Height - nextH) > epsilon) { Height = nextH; movedWindowz = true; resizedWindowz = true; }
+                }
+            }
             else
             {
                 if (Math.Abs(Left - nextLeft) > epsilon) { Left = nextLeft; movedWindowz = true; }
@@ -706,9 +759,8 @@ public partial class MainWindow
             _isSyncingWindFromManagedWindow = false;
         }
 
-        // タイル表示中: Windowz が移動/リサイズした場合、他のタイルウィンドウを再配置する
-        // サイズ変更時は positionOnlyUpdate: false にして Web タブも再計算させる
-        if (tile != null && movedWindowz)
+        // タイル/ピン留め半面: Windowz が移動/リサイズした場合、他のウィンドウを再配置する
+        if ((tile != null || isPinnedHalfActive) && movedWindowz)
         {
             UpdateManagedWindowLayout(activate: false, positionOnlyUpdate: !resizedWindowz);
         }

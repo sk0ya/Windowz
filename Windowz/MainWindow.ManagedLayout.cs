@@ -315,6 +315,8 @@ public partial class MainWindow
 
         var windHwnd = new WindowInteropHelper(this).Handle;
 
+        ApplyPinnedHalfInAppLayout(pinnedTab, activeTab, hasActiveTab, fractions, positionOnlyUpdate);
+
         // ピン留め側を配置
         PlacePinnedWindowSlot(pinnedTab, fractions[0], totalBounds, positionOnlyUpdate);
 
@@ -322,7 +324,10 @@ public partial class MainWindow
         if (hasActiveTab && activeTab != null)
             PlaceActiveHalfSlot(activeTab, fractions[1], totalBounds, activate, positionOnlyUpdate);
         else
-            HidePinnedHalfActiveSlot();
+        {
+            RemoveManagedWindowSyncHooks();
+            _activeManagedWindowHandle = IntPtr.Zero;
+        }
 
         // ピン留め＋アクティブのウィンドウをWindowzより前面へ
         if (keepHandles.Count >= 2)
@@ -332,6 +337,102 @@ public partial class MainWindow
         }
 
         UpdateTileSplitterOverlay(pinnedHalf, fractions);
+    }
+
+    private void ApplyPinnedHalfInAppLayout(
+        TabItem pinnedTab,
+        TabItem? activeTab,
+        bool hasActiveTab,
+        (double Left, double Top, double Width, double Height)[] fractions,
+        bool positionOnlyUpdate)
+    {
+        if (positionOnlyUpdate)
+            return;
+
+        ApplyPinnedHalfWebLayout(pinnedTab, activeTab, hasActiveTab, fractions);
+
+        (TabItem Tab, (double Left, double Top, double Width, double Height) Fraction)? contentPlacement = null;
+        if (pinnedTab.IsContentTab)
+            contentPlacement = (pinnedTab, fractions[0]);
+
+        if (hasActiveTab && activeTab?.IsContentTab == true)
+            contentPlacement = (activeTab, fractions[1]);
+
+        if (contentPlacement is null)
+        {
+            ContentTabContainer.Visibility = Visibility.Collapsed;
+            ContentTabContent.Content = null;
+            ContentTabContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
+            ContentTabContainer.VerticalAlignment = VerticalAlignment.Stretch;
+            ContentTabContainer.Width = double.NaN;
+            ContentTabContainer.Height = double.NaN;
+            ContentTabContainer.Margin = new Thickness(0);
+            return;
+        }
+
+        var (contentTab, fraction) = contentPlacement.Value;
+        var bounds = GetTileSlotBoundsDip(fraction, WindowHostContainer.ActualWidth, WindowHostContainer.ActualHeight);
+        ContentTabContainer.HorizontalAlignment = HorizontalAlignment.Left;
+        ContentTabContainer.VerticalAlignment = VerticalAlignment.Top;
+        ContentTabContainer.Width = Math.Max(1, bounds.Width);
+        ContentTabContainer.Height = Math.Max(1, bounds.Height);
+        ContentTabContainer.Margin = new Thickness(bounds.Left, bounds.Top, 0, 0);
+        ShowContentTab(contentTab.ContentKey);
+        ContentTabContainer.Visibility = Visibility.Visible;
+    }
+
+    private void ApplyPinnedHalfWebLayout(
+        TabItem pinnedTab,
+        TabItem? activeTab,
+        bool hasActiveTab,
+        (double Left, double Top, double Width, double Height)[] fractions)
+    {
+        foreach (var ctrl in _webTabControls.Values)
+        {
+            ctrl.Visibility = Visibility.Collapsed;
+            ctrl.HorizontalAlignment = HorizontalAlignment.Stretch;
+            ctrl.VerticalAlignment = VerticalAlignment.Stretch;
+            ctrl.Width = double.NaN;
+            ctrl.Height = double.NaN;
+            ctrl.Margin = new Thickness(0);
+        }
+
+        var placements = new List<(TabItem Tab, (double Left, double Top, double Width, double Height) Fraction)>();
+        if (pinnedTab.IsWebTab)
+            placements.Add((pinnedTab, fractions[0]));
+
+        if (hasActiveTab && activeTab?.IsWebTab == true)
+            placements.Add((activeTab, fractions[1]));
+
+        if (placements.Count == 0)
+        {
+            WebTabContainer.Visibility = Visibility.Collapsed;
+            _currentWebTabId = null;
+            return;
+        }
+
+        double containerWidth = WindowHostContainer.ActualWidth;
+        double containerHeight = WindowHostContainer.ActualHeight;
+
+        foreach (var (tab, fraction) in placements)
+        {
+            if (!_webTabControls.TryGetValue(tab.Id, out var control))
+            {
+                _ = InitWebTabForTileAsync(tab);
+                continue;
+            }
+
+            var bounds = GetTileSlotBoundsDip(fraction, containerWidth, containerHeight);
+            control.HorizontalAlignment = HorizontalAlignment.Left;
+            control.VerticalAlignment = VerticalAlignment.Top;
+            control.Width = Math.Max(1, bounds.Width);
+            control.Height = Math.Max(1, bounds.Height);
+            control.Margin = new Thickness(bounds.Left, bounds.Top, 0, 0);
+            control.Visibility = Visibility.Visible;
+        }
+
+        WebTabContainer.Visibility = Visibility.Visible;
+        _currentWebTabId = placements.Last().Tab.Id;
     }
 
     private HashSet<IntPtr> BuildPinnedHalfKeepSet(PinnedHalfLayout pinnedHalf, TabItem? activeTab, bool hasActiveTab)
@@ -376,58 +477,19 @@ public partial class MainWindow
         bool activate,
         bool positionOnlyUpdate)
     {
-        if (activeTab.IsContentTab)
+        if (activeTab.IsContentTab || activeTab.IsWebTab)
         {
-            if (!positionOnlyUpdate)
-            {
-                var dipBounds = GetTileSlotBoundsDip(fraction, WindowHostContainer.ActualWidth, WindowHostContainer.ActualHeight);
-                ContentTabContainer.HorizontalAlignment = HorizontalAlignment.Left;
-                ContentTabContainer.VerticalAlignment = VerticalAlignment.Top;
-                ContentTabContainer.Width = Math.Max(1, dipBounds.Width);
-                ContentTabContainer.Height = Math.Max(1, dipBounds.Height);
-                ContentTabContainer.Margin = new Thickness(dipBounds.Left, dipBounds.Top, 0, 0);
-                ShowContentTab(activeTab.ContentKey);
-                ContentTabContainer.Visibility = Visibility.Visible;
-            }
-            return;
-        }
-
-        if (activeTab.IsWebTab)
-        {
-            if (!positionOnlyUpdate)
-            {
-                foreach (var ctrl in _webTabControls.Values)
-                {
-                    ctrl.Visibility = Visibility.Collapsed;
-                    ctrl.HorizontalAlignment = HorizontalAlignment.Stretch;
-                    ctrl.VerticalAlignment = VerticalAlignment.Stretch;
-                    ctrl.Width = double.NaN;
-                    ctrl.Height = double.NaN;
-                    ctrl.Margin = new Thickness(0);
-                }
-
-                if (_webTabControls.TryGetValue(activeTab.Id, out var control))
-                {
-                    var dipBounds = GetTileSlotBoundsDip(fraction, WindowHostContainer.ActualWidth, WindowHostContainer.ActualHeight);
-                    control.HorizontalAlignment = HorizontalAlignment.Left;
-                    control.VerticalAlignment = VerticalAlignment.Top;
-                    control.Width = Math.Max(1, dipBounds.Width);
-                    control.Height = Math.Max(1, dipBounds.Height);
-                    control.Margin = new Thickness(dipBounds.Left, dipBounds.Top, 0, 0);
-                    control.Visibility = Visibility.Visible;
-                    WebTabContainer.Visibility = Visibility.Visible;
-                    _currentWebTabId = activeTab.Id;
-                }
-                else
-                {
-                    _ = InitWebTabForTileAsync(activeTab);
-                }
-            }
+            RemoveManagedWindowSyncHooks();
+            _activeManagedWindowHandle = IntPtr.Zero;
             return;
         }
 
         if (!_tabManager.TryGetExternallyManagedWindowHandle(activeTab, out var handle) || handle == IntPtr.Zero)
+        {
+            RemoveManagedWindowSyncHooks();
+            _activeManagedWindowHandle = IntPtr.Zero;
             return;
+        }
 
         var pxBounds = GetTileSlotBoundsPx(fraction, totalBounds);
         RunManagedWindowSync(() =>
@@ -439,22 +501,6 @@ public partial class MainWindow
 
         EnsureManagedWindowSyncHooks(handle);
         _activeManagedWindowHandle = handle;
-    }
-
-    private void HidePinnedHalfActiveSlot()
-    {
-        ContentTabContainer.Visibility = Visibility.Collapsed;
-        ContentTabContent.Content = null;
-        ContentTabContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
-        ContentTabContainer.VerticalAlignment = VerticalAlignment.Stretch;
-        ContentTabContainer.Width = double.NaN;
-        ContentTabContainer.Height = double.NaN;
-        ContentTabContainer.Margin = new Thickness(0);
-
-        foreach (var ctrl in _webTabControls.Values)
-            ctrl.Visibility = Visibility.Collapsed;
-        WebTabContainer.Visibility = Visibility.Collapsed;
-        _currentWebTabId = null;
     }
 
     private void UpdateTileSplitterOverlay(
@@ -749,7 +795,7 @@ public partial class MainWindow
 
         await control.InitializeAsync(tab.WebUrl ?? "https://www.google.com");
 
-        if (tab.TileLayout != null)
+        if (tab.TileLayout != null || _tabManager.PinnedHalf != null)
             UpdateManagedWindowLayout(activate: false);
     }
 

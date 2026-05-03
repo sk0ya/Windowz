@@ -18,7 +18,7 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
                 // タイル表示中またはピン留め中は通常の表示切り替えをスキップ
-                if (_viewModel.SelectedTab?.TileLayout != null || _tabManager.PinnedHalf != null)
+                if (_viewModel.SelectedTab?.TileLayout != null || IsPinnedHalfSplitLayoutActive())
                 {
                     UpdateManagedWindowLayout(activate: false);
                     return;
@@ -36,7 +36,7 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
                 // タイル表示中またはピン留め中は通常の表示切り替えをスキップ
-                if (_viewModel.SelectedTab?.TileLayout != null || _tabManager.PinnedHalf != null)
+                if (_viewModel.SelectedTab?.TileLayout != null || IsPinnedHalfSplitLayoutActive())
                 {
                     UpdateManagedWindowLayout(activate: false);
                     return;
@@ -80,7 +80,7 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
                 // タイル表示中またはピン留め中は通常の表示切り替えをスキップ
-                if (_viewModel.SelectedTab?.TileLayout != null || _tabManager.PinnedHalf != null)
+                if (_viewModel.SelectedTab?.TileLayout != null || IsPinnedHalfSplitLayoutActive())
                 {
                     UpdateManagedWindowLayout(activate: false);
                     return;
@@ -117,7 +117,7 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
                 // タイル表示中またはピン留め中は通常の表示切り替えをスキップ
-                if (_viewModel.SelectedTab?.TileLayout != null || _tabManager.PinnedHalf != null)
+                if (_viewModel.SelectedTab?.TileLayout != null || IsPinnedHalfSplitLayoutActive())
                     return;
 
                 if (_viewModel.IsWebTabActive)
@@ -172,6 +172,12 @@ public partial class MainWindow
                 }
             });
         }
+    }
+
+    private bool IsPinnedHalfSplitLayoutActive()
+    {
+        var pinnedHalf = _tabManager.PinnedHalf;
+        return pinnedHalf != null && _viewModel.SelectedTab != pinnedHalf.PinnedTab;
     }
 
     /// <summary>
