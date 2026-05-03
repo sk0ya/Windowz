@@ -164,6 +164,55 @@ public partial class TabManager
         TileLayouts.Remove(tile);
     }
 
+    // ─── Pinned Half ──────────────────────────────────────────────
+
+    public PinnedHalfLayout? PinnedHalf { get; private set; }
+
+    /// <summary>
+    /// 指定タブをコンテンツエリアの左/右半分に固定表示する。
+    /// 既存のタイルやピン留めは先に解除される。
+    /// </summary>
+    public PinnedHalfLayout? PinTab(TabItem tab, PinnedSide side)
+    {
+        if (tab.TileLayout != null)
+            ReleaseTileInternal(tab.TileLayout);
+
+        ClearPinnedHalfInternal();
+
+        var layout = new PinnedHalfLayout(tab, side);
+        tab.PinnedHalfLayout = layout;
+        PinnedHalf = layout;
+
+        // ピン留めタブを先頭へ移動
+        int idx = Tabs.IndexOf(tab);
+        if (idx > 0)
+            Tabs.Move(idx, 0);
+
+        return layout;
+    }
+
+    /// <summary>現在のピン留めを解除する。</summary>
+    public void UnpinHalf()
+    {
+        ClearPinnedHalfInternal();
+    }
+
+    /// <summary>指定タブが削除されたときにピン留めをクリアする。</summary>
+    public void CleanupPinnedHalfForRemovedTab(TabItem tab)
+    {
+        if (PinnedHalf?.PinnedTab == tab)
+            ClearPinnedHalfInternal();
+    }
+
+    private void ClearPinnedHalfInternal()
+    {
+        if (PinnedHalf == null)
+            return;
+
+        PinnedHalf.PinnedTab.PinnedHalfLayout = null;
+        PinnedHalf = null;
+    }
+
     private void ReorderTabsForTile(TileLayout tile)
     {
         // タイルメンバーの最も若いインデックスを基点とする

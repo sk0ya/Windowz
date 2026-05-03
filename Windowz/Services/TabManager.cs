@@ -203,8 +203,9 @@ public partial class TabManager
             _externallyManagedWindows.Remove(tab.Id);
         }
 
-        // タイルグループから除去
+        // タイルグループ・ピン留めから除去
         CleanupTileForRemovedTab(tab);
+        CleanupPinnedHalfForRemovedTab(tab);
 
         tab.Group?.RemoveTab(tab);
 
@@ -242,8 +243,9 @@ public partial class TabManager
             _externallyManagedWindows.Remove(tab.Id);
         }
 
-        // タイルグループから除去
+        // タイルグループ・ピン留めから除去
         CleanupTileForRemovedTab(tab);
+        CleanupPinnedHalfForRemovedTab(tab);
 
         // Remove from group if in one
         tab.Group?.RemoveTab(tab);
@@ -307,8 +309,9 @@ public partial class TabManager
                     _externallyManagedWindows.Remove(tab.Id);
                 }
 
-                // タイルグループから除去
+                // タイルグループ・ピン留めから除去
                 CleanupTileForRemovedTab(tab);
+                CleanupPinnedHalfForRemovedTab(tab);
 
                 // Remove from group if in one
                 tab.Group?.RemoveTab(tab);

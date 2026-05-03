@@ -10,21 +10,26 @@ public partial class MainWindow
     {
         None,
         SingleWindow,
-        Tile
+        Tile,
+        PinnedHalf
     }
 
     private readonly record struct ManagedWindowLayoutTarget(
         ManagedWindowLayoutMode Mode,
         TileLayout? Tile,
+        PinnedHalfLayout? PinnedHalf,
         IntPtr Handle)
     {
-        public static ManagedWindowLayoutTarget None => new(ManagedWindowLayoutMode.None, null, IntPtr.Zero);
+        public static ManagedWindowLayoutTarget None => new(ManagedWindowLayoutMode.None, null, null, IntPtr.Zero);
 
         public static ManagedWindowLayoutTarget ForSingleWindow(IntPtr handle) =>
-            new(ManagedWindowLayoutMode.SingleWindow, null, handle);
+            new(ManagedWindowLayoutMode.SingleWindow, null, null, handle);
 
         public static ManagedWindowLayoutTarget ForTile(TileLayout tile) =>
-            new(ManagedWindowLayoutMode.Tile, tile, IntPtr.Zero);
+            new(ManagedWindowLayoutMode.Tile, tile, null, IntPtr.Zero);
+
+        public static ManagedWindowLayoutTarget ForPinnedHalf(PinnedHalfLayout pinnedHalf) =>
+            new(ManagedWindowLayoutMode.PinnedHalf, null, pinnedHalf, IntPtr.Zero);
     }
 
     private sealed class TileLayoutMembers
@@ -51,6 +56,15 @@ public partial class MainWindow
             case ManagedWindowLayoutMode.Tile:
                 _isTileModeActive = true;
                 UpdateTileLayout(target.Tile!, activate, positionOnlyUpdate);
+                if (!positionOnlyUpdate)
+                {
+                    UpdateManagedSurfaceRegion(target);
+                }
+                return;
+
+            case ManagedWindowLayoutMode.PinnedHalf:
+                ExitTileModeIfNeeded();
+                UpdatePinnedHalfLayout(target.PinnedHalf!, activate, positionOnlyUpdate);
                 if (!positionOnlyUpdate)
                 {
                     UpdateManagedSurfaceRegion(target);
@@ -105,6 +119,19 @@ public partial class MainWindow
             WindowState != WindowState.Minimized)
         {
             return ManagedWindowLayoutTarget.ForTile(tile);
+        }
+
+        // ピン留め表示: ウィンドウピッカー・最小化時は非アクティブ化
+        var pinnedHalf = _tabManager.PinnedHalf;
+        if (pinnedHalf != null &&
+            !_viewModel.IsWindowPickerOpen &&
+            WindowState != WindowState.Minimized)
+        {
+            // ピン留めタブ自身がアクティブな場合はシングルウィンドウとして扱う
+            if (selectedTab != pinnedHalf.PinnedTab)
+            {
+                return ManagedWindowLayoutTarget.ForPinnedHalf(pinnedHalf);
+            }
         }
 
         if (_viewModel.IsWindowPickerOpen ||
@@ -263,6 +290,213 @@ public partial class MainWindow
     private void MinimizeManagedWindowsExcept(IReadOnlySet<IntPtr> targetHandles)
     {
         RunManagedWindowSync(() => _windowManager.MinimizeAllManagedWindowsExcept(targetHandles));
+    }
+
+    private void UpdatePinnedHalfLayout(PinnedHalfLayout pinnedHalf, bool activate, bool positionOnlyUpdate = false)
+    {
+        var fractions = pinnedHalf.GetLayoutFractions();
+        // fractions[0] = ピン留め側, fractions[1] = アクティブタブ側
+
+        var pinnedTab = pinnedHalf.PinnedTab;
+        var activeTab = _viewModel.SelectedTab;
+        bool hasActiveTab = activeTab != null && activeTab != pinnedTab;
+
+        WindowHostContainer.Visibility = Visibility.Visible;
+
+        // 表示を維持するウィンドウハンドルセットを決定して他を最小化
+        var keepHandles = BuildPinnedHalfKeepSet(pinnedHalf, activeTab, hasActiveTab);
+        if (keepHandles.Count > 0)
+            MinimizeManagedWindowsExcept(keepHandles);
+        else
+            MinimizeManagedWindowsExcept(IntPtr.Zero);
+
+        if (!TryGetManagedWindowBounds(out var totalBounds))
+            return;
+
+        var windHwnd = new WindowInteropHelper(this).Handle;
+
+        // ピン留め側を配置
+        PlacePinnedWindowSlot(pinnedTab, fractions[0], totalBounds, positionOnlyUpdate);
+
+        // アクティブタブ側を配置
+        if (hasActiveTab && activeTab != null)
+            PlaceActiveHalfSlot(activeTab, fractions[1], totalBounds, activate, positionOnlyUpdate);
+        else
+            HidePinnedHalfActiveSlot();
+
+        // ピン留め＋アクティブのウィンドウをWindowzより前面へ
+        if (keepHandles.Count >= 2)
+        {
+            RunManagedWindowSync(() => RaiseTileWindowsAboveWindowz(windHwnd, keepHandles),
+                ManagedWindowEventIgnoreDurationMs);
+        }
+
+        UpdateTileSplitterOverlay(pinnedHalf, fractions);
+    }
+
+    private HashSet<IntPtr> BuildPinnedHalfKeepSet(PinnedHalfLayout pinnedHalf, TabItem? activeTab, bool hasActiveTab)
+    {
+        var set = new HashSet<IntPtr>();
+        if (!pinnedHalf.PinnedTab.IsContentTab && !pinnedHalf.PinnedTab.IsWebTab &&
+            _tabManager.TryGetExternallyManagedWindowHandle(pinnedHalf.PinnedTab, out var ph) && ph != IntPtr.Zero)
+            set.Add(ph);
+
+        if (hasActiveTab && activeTab != null &&
+            !activeTab.IsContentTab && !activeTab.IsWebTab &&
+            _tabManager.TryGetExternallyManagedWindowHandle(activeTab, out var ah) && ah != IntPtr.Zero)
+            set.Add(ah);
+
+        return set;
+    }
+
+    private void PlacePinnedWindowSlot(
+        TabItem pinnedTab,
+        (double Left, double Top, double Width, double Height) fraction,
+        NativeMethods.RECT totalBounds,
+        bool positionOnlyUpdate)
+    {
+        if (pinnedTab.IsContentTab || pinnedTab.IsWebTab) return;
+
+        if (!_tabManager.TryGetExternallyManagedWindowHandle(pinnedTab, out var handle) || handle == IntPtr.Zero)
+            return;
+
+        var bounds = GetTileSlotBoundsPx(fraction, totalBounds);
+        RunManagedWindowSync(() =>
+        {
+            _windowManager.ActivateManagedWindow(
+                handle, bounds.Left, bounds.Top, bounds.Width, bounds.Height,
+                bringToFront: false, setZOrder: false);
+        }, ManagedWindowEventIgnoreDurationMs);
+    }
+
+    private void PlaceActiveHalfSlot(
+        TabItem activeTab,
+        (double Left, double Top, double Width, double Height) fraction,
+        NativeMethods.RECT totalBounds,
+        bool activate,
+        bool positionOnlyUpdate)
+    {
+        if (activeTab.IsContentTab)
+        {
+            if (!positionOnlyUpdate)
+            {
+                var dipBounds = GetTileSlotBoundsDip(fraction, WindowHostContainer.ActualWidth, WindowHostContainer.ActualHeight);
+                ContentTabContainer.HorizontalAlignment = HorizontalAlignment.Left;
+                ContentTabContainer.VerticalAlignment = VerticalAlignment.Top;
+                ContentTabContainer.Width = Math.Max(1, dipBounds.Width);
+                ContentTabContainer.Height = Math.Max(1, dipBounds.Height);
+                ContentTabContainer.Margin = new Thickness(dipBounds.Left, dipBounds.Top, 0, 0);
+                ShowContentTab(activeTab.ContentKey);
+                ContentTabContainer.Visibility = Visibility.Visible;
+            }
+            return;
+        }
+
+        if (activeTab.IsWebTab)
+        {
+            if (!positionOnlyUpdate)
+            {
+                foreach (var ctrl in _webTabControls.Values)
+                {
+                    ctrl.Visibility = Visibility.Collapsed;
+                    ctrl.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    ctrl.VerticalAlignment = VerticalAlignment.Stretch;
+                    ctrl.Width = double.NaN;
+                    ctrl.Height = double.NaN;
+                    ctrl.Margin = new Thickness(0);
+                }
+
+                if (_webTabControls.TryGetValue(activeTab.Id, out var control))
+                {
+                    var dipBounds = GetTileSlotBoundsDip(fraction, WindowHostContainer.ActualWidth, WindowHostContainer.ActualHeight);
+                    control.HorizontalAlignment = HorizontalAlignment.Left;
+                    control.VerticalAlignment = VerticalAlignment.Top;
+                    control.Width = Math.Max(1, dipBounds.Width);
+                    control.Height = Math.Max(1, dipBounds.Height);
+                    control.Margin = new Thickness(dipBounds.Left, dipBounds.Top, 0, 0);
+                    control.Visibility = Visibility.Visible;
+                    WebTabContainer.Visibility = Visibility.Visible;
+                    _currentWebTabId = activeTab.Id;
+                }
+                else
+                {
+                    _ = InitWebTabForTileAsync(activeTab);
+                }
+            }
+            return;
+        }
+
+        if (!_tabManager.TryGetExternallyManagedWindowHandle(activeTab, out var handle) || handle == IntPtr.Zero)
+            return;
+
+        var pxBounds = GetTileSlotBoundsPx(fraction, totalBounds);
+        RunManagedWindowSync(() =>
+        {
+            _windowManager.ActivateManagedWindow(
+                handle, pxBounds.Left, pxBounds.Top, pxBounds.Width, pxBounds.Height,
+                bringToFront: activate, setZOrder: false);
+        }, ManagedWindowEventIgnoreDurationMs);
+
+        EnsureManagedWindowSyncHooks(handle);
+        _activeManagedWindowHandle = handle;
+    }
+
+    private void HidePinnedHalfActiveSlot()
+    {
+        ContentTabContainer.Visibility = Visibility.Collapsed;
+        ContentTabContent.Content = null;
+        ContentTabContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
+        ContentTabContainer.VerticalAlignment = VerticalAlignment.Stretch;
+        ContentTabContainer.Width = double.NaN;
+        ContentTabContainer.Height = double.NaN;
+        ContentTabContainer.Margin = new Thickness(0);
+
+        foreach (var ctrl in _webTabControls.Values)
+            ctrl.Visibility = Visibility.Collapsed;
+        WebTabContainer.Visibility = Visibility.Collapsed;
+        _currentWebTabId = null;
+    }
+
+    private void UpdateTileSplitterOverlay(
+        PinnedHalfLayout pinnedHalf,
+        (double Left, double Top, double Width, double Height)[] fractions)
+    {
+        if (WindowHostContainer.ActualWidth <= 0 ||
+            WindowHostContainer.ActualHeight <= 0 ||
+            _viewModel.IsWindowPickerOpen ||
+            _viewModel.IsCommandPaletteOpen)
+        {
+            HideTileSplitterOverlay();
+            return;
+        }
+
+        TileSplitterCanvas.Visibility = Visibility.Visible;
+
+        if (!_isDraggingTileSplitter || TileSplitterCanvas.Children.Count != 1)
+            RebuildTileSplitterOverlay(2);
+
+        if (_isDraggingTileSplitter && ReferenceEquals(pinnedHalf, _dragPinnedHalfLayout))
+        {
+            PositionPinnedHalfSplitterOverlay(pinnedHalf, _dragTileSplitterVerticalSplit);
+            return;
+        }
+
+        PositionPinnedHalfSplitterOverlay(pinnedHalf, pinnedHalf.SplitRatio);
+    }
+
+    private void PositionPinnedHalfSplitterOverlay(PinnedHalfLayout pinnedHalf, double splitRatio)
+    {
+        double width = WindowHostContainer.ActualWidth;
+        double height = WindowHostContainer.ActualHeight;
+        double splitX = splitRatio * width;
+
+        foreach (UIElement child in TileSplitterCanvas.Children)
+        {
+            if (child is FrameworkElement element && element.Tag is TileSplitterTag)
+            {
+                SetTileSplitterBounds(element, splitX - TileSplitterGapDip / 2.0, 0, TileSplitterGapDip, height);
+            }
+        }
     }
 
     private void UpdateTileLayout(TileLayout tile, bool activate, bool positionOnlyUpdate = false)
@@ -557,9 +791,36 @@ public partial class MainWindow
                     bounds.Width,
                     bounds.Height);
             }
+            return;
         }
-        else if (_viewModel.TryGetExternallyManagedWindowHandle(selectedTab, out var handle) &&
-                 handle != IntPtr.Zero)
+
+        // ピン留め半面: ピン側とアクティブ側を非同期移動
+        var pinnedHalf = _tabManager.PinnedHalf;
+        if (pinnedHalf != null &&
+            selectedTab != pinnedHalf.PinnedTab &&
+            WindowState != WindowState.Minimized)
+        {
+            var fractions = pinnedHalf.GetLayoutFractions();
+
+            if (_tabManager.TryGetExternallyManagedWindowHandle(pinnedHalf.PinnedTab, out var pinnedHandle) &&
+                pinnedHandle != IntPtr.Zero)
+            {
+                var pb = GetTileSlotBoundsPx(fractions[0], totalBounds);
+                _windowManager.MoveManagedWindowAsync(pinnedHandle, pb.Left, pb.Top, pb.Width, pb.Height);
+            }
+
+            if (_tabManager.TryGetExternallyManagedWindowHandle(selectedTab, out var activeHandle) &&
+                activeHandle != IntPtr.Zero)
+            {
+                var ab = GetTileSlotBoundsPx(fractions[1], totalBounds);
+                _windowManager.MoveManagedWindowAsync(activeHandle, ab.Left, ab.Top, ab.Width, ab.Height);
+            }
+
+            return;
+        }
+
+        if (_viewModel.TryGetExternallyManagedWindowHandle(selectedTab, out var handle) &&
+            handle != IntPtr.Zero)
         {
             // シングルウィンドウ: 非同期で移動
             _windowManager.MoveManagedWindowAsync(
@@ -736,6 +997,37 @@ public partial class MainWindow
                     {
                         holeRects.Add(clippedSlotBounds);
                     }
+                }
+
+                return holeRects.Count > 0;
+
+            case ManagedWindowLayoutMode.PinnedHalf:
+                var pinnedHalf = target.PinnedHalf;
+                if (pinnedHalf == null)
+                    return false;
+
+                var pinnedFractions = pinnedHalf.GetLayoutFractions();
+                var activeTab = _viewModel.SelectedTab;
+
+                // [0] = ピン留め側
+                if (!pinnedHalf.PinnedTab.IsContentTab && !pinnedHalf.PinnedTab.IsWebTab &&
+                    _tabManager.TryGetExternallyManagedWindowHandle(pinnedHalf.PinnedTab, out _))
+                {
+                    var slotBounds = GetTileSlotBoundsPx(pinnedFractions[0], hostBounds);
+                    if (TryClipRegionRect(slotBounds, windowWidth, windowHeight, out var clipped))
+                        holeRects.Add(clipped);
+                }
+
+                // [1] = アクティブタブ側 (ウィンドウタブのみ)
+                if (activeTab != null &&
+                    activeTab != pinnedHalf.PinnedTab &&
+                    !activeTab.IsContentTab &&
+                    !activeTab.IsWebTab &&
+                    _tabManager.TryGetExternallyManagedWindowHandle(activeTab, out _))
+                {
+                    var slotBounds = GetTileSlotBoundsPx(pinnedFractions[1], hostBounds);
+                    if (TryClipRegionRect(slotBounds, windowWidth, windowHeight, out var clipped))
+                        holeRects.Add(clipped);
                 }
 
                 return holeRects.Count > 0;

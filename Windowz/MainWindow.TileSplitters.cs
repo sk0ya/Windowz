@@ -35,6 +35,7 @@ public partial class MainWindow
     private bool _isDraggingTileSplitter;
     private TileSplitterKind _dragTileSplitterKind;
     private TileLayout? _dragTileSplitterLayout;
+    private PinnedHalfLayout? _dragPinnedHalfLayout;
     private FrameworkElement? _dragTileSplitterElement;
     private double _dragTileSplitterVerticalSplit;
     private double _dragTileSplitterHorizontalSplit;
@@ -365,28 +366,42 @@ public partial class MainWindow
             return;
         }
 
-        var tile = _viewModel.SelectedTab?.TileLayout;
-        if (tile == null)
+        var selectedTab = _viewModel.SelectedTab;
+        var tile = selectedTab?.TileLayout;
+        var pinnedHalf = _tabManager.PinnedHalf;
+
+        if (tile != null)
+        {
+            _isDraggingTileSplitter = true;
+            _dragTileSplitterKind = tag.Kind;
+            _dragTileSplitterLayout = tile;
+            _dragPinnedHalfLayout = null;
+            _dragTileSplitterElement = element;
+            _dragTileSplitterVerticalSplit = tile.VerticalSplit;
+            _dragTileSplitterHorizontalSplit = tile.HorizontalSplit;
+            element.CaptureMouse();
+            e.Handled = true;
             return;
+        }
 
-        _isDraggingTileSplitter = true;
-        _dragTileSplitterKind = tag.Kind;
-        _dragTileSplitterLayout = tile;
-        _dragTileSplitterElement = element;
-        _dragTileSplitterVerticalSplit = tile.VerticalSplit;
-        _dragTileSplitterHorizontalSplit = tile.HorizontalSplit;
-        element.CaptureMouse();
-
-        e.Handled = true;
+        if (pinnedHalf != null)
+        {
+            _isDraggingTileSplitter = true;
+            _dragTileSplitterKind = TileSplitterKind.Vertical;
+            _dragTileSplitterLayout = null;
+            _dragPinnedHalfLayout = pinnedHalf;
+            _dragTileSplitterElement = element;
+            _dragTileSplitterVerticalSplit = pinnedHalf.SplitRatio;
+            _dragTileSplitterHorizontalSplit = 0.5;
+            element.CaptureMouse();
+            e.Handled = true;
+        }
     }
 
     private void TileSplitter_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_isDraggingTileSplitter ||
-            _dragTileSplitterLayout == null)
-        {
+        if (!_isDraggingTileSplitter)
             return;
-        }
 
         if (e.LeftButton != MouseButtonState.Pressed)
         {
@@ -394,19 +409,36 @@ public partial class MainWindow
             return;
         }
 
-        if (_dragTileSplitterLayout != _viewModel.SelectedTab?.TileLayout)
-        {
-            EndTileSplitterDrag(commitLayout: false);
-            return;
-        }
-
         var point = e.GetPosition(WindowHostContainer);
-        if (TryUpdateTileSplitPreview(_dragTileSplitterKind, point))
+
+        if (_dragTileSplitterLayout != null)
         {
-            PositionTileSplitterOverlay(
-                _dragTileSplitterLayout,
-                _dragTileSplitterVerticalSplit,
-                _dragTileSplitterHorizontalSplit);
+            if (_dragTileSplitterLayout != _viewModel.SelectedTab?.TileLayout)
+            {
+                EndTileSplitterDrag(commitLayout: false);
+                return;
+            }
+
+            if (TryUpdateTileSplitPreview(_dragTileSplitterKind, point))
+            {
+                PositionTileSplitterOverlay(
+                    _dragTileSplitterLayout,
+                    _dragTileSplitterVerticalSplit,
+                    _dragTileSplitterHorizontalSplit);
+            }
+        }
+        else if (_dragPinnedHalfLayout != null)
+        {
+            if (_dragPinnedHalfLayout != _tabManager.PinnedHalf)
+            {
+                EndTileSplitterDrag(commitLayout: false);
+                return;
+            }
+
+            if (TryUpdateTileSplitPreview(TileSplitterKind.Vertical, point))
+            {
+                PositionPinnedHalfSplitterOverlay(_dragPinnedHalfLayout, _dragTileSplitterVerticalSplit);
+            }
         }
 
         e.Handled = true;
@@ -490,14 +522,33 @@ public partial class MainWindow
         return changed;
     }
 
+    private bool CommitPinnedHalfSplitterPreview(PinnedHalfLayout pinnedHalf)
+    {
+        if (Math.Abs(pinnedHalf.SplitRatio - _dragTileSplitterVerticalSplit) < TileSplitterChangeEpsilon)
+            return false;
+
+        pinnedHalf.SetSplitRatio(_dragTileSplitterVerticalSplit);
+        return true;
+    }
+
     private void EndTileSplitterDrag(bool commitLayout)
     {
         var element = _dragTileSplitterElement;
         var tile = _dragTileSplitterLayout;
-        bool changed = commitLayout && tile != null && CommitTileSplitterPreview(tile);
+        var pinnedHalf = _dragPinnedHalfLayout;
+
+        bool changed = false;
+        if (commitLayout)
+        {
+            if (tile != null)
+                changed = CommitTileSplitterPreview(tile);
+            else if (pinnedHalf != null)
+                changed = CommitPinnedHalfSplitterPreview(pinnedHalf);
+        }
 
         _isDraggingTileSplitter = false;
         _dragTileSplitterLayout = null;
+        _dragPinnedHalfLayout = null;
         _dragTileSplitterElement = null;
         _dragTileSplitterVerticalSplit = 0;
         _dragTileSplitterHorizontalSplit = 0;

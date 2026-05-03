@@ -37,6 +37,17 @@ public partial class TabItem : ObservableObject
     }
 
     [ObservableProperty]
+    private PinnedHalfLayout? _pinnedHalfLayout;
+
+    /// <summary>このタブが左/右固定表示されているか</summary>
+    public bool IsPinnedHalf => PinnedHalfLayout != null;
+
+    partial void OnPinnedHalfLayoutChanged(PinnedHalfLayout? value)
+    {
+        OnPropertyChanged(nameof(IsPinnedHalf));
+    }
+
+    [ObservableProperty]
     private bool _isLaunchedAtStartup;
 
     [ObservableProperty]

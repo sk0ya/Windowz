@@ -248,6 +248,10 @@
                         <Separator Tag="TileSeparator"/>
                         <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
                         <MenuItem Header="タイル表示を解除" Click="ReleaseTile_Click" Tag="{Binding}"/>
+                        <Separator Tag="PinSeparator"/>
+                        <MenuItem Header="左半分に固定" Click="PinTabLeft_Click" Tag="{Binding}"/>
+                        <MenuItem Header="右半分に固定" Click="PinTabRight_Click" Tag="{Binding}"/>
+                        <MenuItem Header="固定を解除" Click="UnpinTab_Click" Tag="{Binding}"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>
@@ -275,6 +279,11 @@
                             Background="{DynamicResource AccentFillColorDefaultBrush}"
                             Margin="4,0,0,0" VerticalAlignment="Center"
                             Visibility="{Binding TileLayout, Converter={StaticResource NullToVisibility}}"/>
+                    <!-- ピン留め中のインジケーター -->
+                    <ui:SymbolIcon Symbol="Pin16" FontSize="10"
+                                   Margin="4,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Visibility="{Binding PinnedHalfLayout, Converter={StaticResource NullToVisibility}}"/>
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -299,6 +308,10 @@
                         <Separator Tag="TileSeparator"/>
                         <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
                         <MenuItem Header="タイル表示を解除" Click="ReleaseTile_Click" Tag="{Binding}"/>
+                        <Separator Tag="PinSeparator"/>
+                        <MenuItem Header="左半分に固定" Click="PinTabLeft_Click" Tag="{Binding}"/>
+                        <MenuItem Header="右半分に固定" Click="PinTabRight_Click" Tag="{Binding}"/>
+                        <MenuItem Header="固定を解除" Click="UnpinTab_Click" Tag="{Binding}"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>
@@ -331,6 +344,11 @@
                             Background="{DynamicResource AccentFillColorDefaultBrush}"
                             Margin="4,0,0,0" VerticalAlignment="Center"
                             Visibility="{Binding TileLayout, Converter={StaticResource NullToVisibility}}"/>
+                    <!-- ピン留め中のインジケーター -->
+                    <ui:SymbolIcon Grid.Column="2" Symbol="Pin16" FontSize="10"
+                                   Margin="4,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Visibility="{Binding PinnedHalfLayout, Converter={StaticResource NullToVisibility}}"/>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -357,6 +375,10 @@
                         <Separator Tag="TileSeparator"/>
                         <MenuItem Header="タイル表示" Click="TileSelectedTabs_Click" Tag="{Binding}"/>
                         <MenuItem Header="タイル表示を解除" Click="ReleaseTile_Click" Tag="{Binding}"/>
+                        <Separator Tag="PinSeparator"/>
+                        <MenuItem Header="左半分に固定" Click="PinTabLeft_Click" Tag="{Binding}"/>
+                        <MenuItem Header="右半分に固定" Click="PinTabRight_Click" Tag="{Binding}"/>
+                        <MenuItem Header="固定を解除" Click="UnpinTab_Click" Tag="{Binding}"/>
                         <MenuItem Header="タブ管理を解除" Click="ReleaseEmbed_Click" Tag="{Binding}"/>
                         <MenuItem Header="閉じる" Click="CloseTab_Click" Tag="{Binding}"/>
                     </ContextMenu>

@@ -17,9 +17,12 @@ public partial class MainWindow
             // Content tab switched (e.g. Settings → Startup Settings)
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
-                // タイル表示中は通常の表示切り替えをスキップ
-                if (_viewModel.SelectedTab?.TileLayout != null)
+                // タイル表示中またはピン留め中は通常の表示切り替えをスキップ
+                if (_viewModel.SelectedTab?.TileLayout != null || _tabManager.PinnedHalf != null)
+                {
+                    UpdateManagedWindowLayout(activate: false);
                     return;
+                }
 
                 if (_viewModel.IsContentTabActive)
                 {
@@ -32,8 +35,8 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
-                // タイル表示中は通常の表示切り替えをスキップ
-                if (_viewModel.SelectedTab?.TileLayout != null)
+                // タイル表示中またはピン留め中は通常の表示切り替えをスキップ
+                if (_viewModel.SelectedTab?.TileLayout != null || _tabManager.PinnedHalf != null)
                 {
                     UpdateManagedWindowLayout(activate: false);
                     return;
@@ -76,8 +79,8 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
-                // タイル表示中は通常の表示切り替えをスキップ
-                if (_viewModel.SelectedTab?.TileLayout != null)
+                // タイル表示中またはピン留め中は通常の表示切り替えをスキップ
+                if (_viewModel.SelectedTab?.TileLayout != null || _tabManager.PinnedHalf != null)
                 {
                     UpdateManagedWindowLayout(activate: false);
                     return;
@@ -113,8 +116,8 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
-                // タイル表示中は通常の表示切り替えをスキップ
-                if (_viewModel.SelectedTab?.TileLayout != null)
+                // タイル表示中またはピン留め中は通常の表示切り替えをスキップ
+                if (_viewModel.SelectedTab?.TileLayout != null || _tabManager.PinnedHalf != null)
                     return;
 
                 if (_viewModel.IsWebTabActive)

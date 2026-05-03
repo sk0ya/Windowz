@@ -237,11 +237,19 @@ public partial class MainWindow
         bool canUntile = tab.TileLayout != null;
         bool showTileSeparator = canTile || canUntile;
 
+        bool canPin = isWindowTab || tab.IsWebTab || tab.IsContentTab;
+        bool canUnpin = _tabManager.PinnedHalf != null;
+        bool showPinSeparator = canPin || canUnpin;
+
         foreach (var rawItem in menu.Items)
         {
-            if (rawItem is Separator sep && sep.Tag?.ToString() == "TileSeparator")
+            if (rawItem is Separator sep)
             {
-                sep.Visibility = showTileSeparator ? Visibility.Visible : Visibility.Collapsed;
+                var tagStr = sep.Tag?.ToString();
+                if (tagStr == "TileSeparator")
+                    sep.Visibility = showTileSeparator ? Visibility.Visible : Visibility.Collapsed;
+                else if (tagStr == "PinSeparator")
+                    sep.Visibility = showPinSeparator ? Visibility.Visible : Visibility.Collapsed;
                 continue;
             }
 
@@ -300,6 +308,14 @@ public partial class MainWindow
             else if (header == "タイル表示を解除")
             {
                 item.Visibility = canUntile ? Visibility.Visible : Visibility.Collapsed;
+            }
+            else if (header is "左半分に固定" or "右半分に固定")
+            {
+                item.Visibility = canPin ? Visibility.Visible : Visibility.Collapsed;
+            }
+            else if (header == "固定を解除")
+            {
+                item.Visibility = canUnpin ? Visibility.Visible : Visibility.Collapsed;
             }
         }
     }
@@ -442,6 +458,29 @@ public partial class MainWindow
         _tabManager.ReleaseTile(tab.TileLayout);
         UpdateManagedWindowLayout(activate: true);
         _viewModel.StatusMessage = "タイル表示を解除しました";
+    }
+
+    private void PinTabLeft_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement el || el.Tag is not Models.TabItem tab) return;
+        _tabManager.PinTab(tab, Models.PinnedSide.Left);
+        UpdateManagedWindowLayout(activate: true);
+        _viewModel.StatusMessage = $"左半分に固定: {tab.DisplayTitle}";
+    }
+
+    private void PinTabRight_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement el || el.Tag is not Models.TabItem tab) return;
+        _tabManager.PinTab(tab, Models.PinnedSide.Right);
+        UpdateManagedWindowLayout(activate: true);
+        _viewModel.StatusMessage = $"右半分に固定: {tab.DisplayTitle}";
+    }
+
+    private void UnpinTab_Click(object sender, RoutedEventArgs e)
+    {
+        _tabManager.UnpinHalf();
+        UpdateManagedWindowLayout(activate: true);
+        _viewModel.StatusMessage = "固定を解除しました";
     }
 
     private void RenameTab_Click(object sender, RoutedEventArgs e)
