@@ -10,6 +10,8 @@ public class WindowManager
     private readonly Dictionary<IntPtr, ManagedWindowState> _managedWindowStates = new();
     // ドラッグ中の SWP_ASYNCWINDOWPOS 重複ポストを防ぐキャッシュ
     private readonly Dictionary<IntPtr, (int x, int y, int w, int h)> _lastAsyncPos = new();
+    // DWM フレームインセットキャッシュ: ウィンドウスタイルが変わらない限り不変なので1回だけ取得する
+    private readonly Dictionary<IntPtr, (int Left, int Top, int Right, int Bottom)> _frameInsetsCache = new();
     public string? LastEmbedFailureMessage { get; private set; }
 
     public ObservableCollection<WindowInfo> AvailableWindows { get; } = new();
@@ -138,6 +140,10 @@ public class WindowManager
             WasMinimized = NativeMethods.IsIconic(handle),
             WasMaximized = NativeMethods.IsZoomed(handle)
         };
+
+        // ドラッグ中の DWM クエリを避けるため、フレームインセットを先行キャッシュする
+        NativeMethods.TryGetWindowFrameInsets(handle, out int iL, out int iT, out int iR, out int iB);
+        _frameInsetsCache[handle] = (iL, iT, iR, iB);
 
         return true;
     }
@@ -308,7 +314,7 @@ public class WindowManager
         NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DWMWA_TRANSITIONS_FORCEDISABLED, ref zero, sizeof(int));
     }
 
-    private static void ConvertVisibleBoundsToWindowBounds(
+    private void ConvertVisibleBoundsToWindowBounds(
         IntPtr handle,
         int visibleX,
         int visibleY,
@@ -327,20 +333,26 @@ public class WindowManager
         windowWidth = boundedWidth;
         windowHeight = boundedHeight;
 
-        if (!NativeMethods.TryGetWindowFrameInsets(
-                handle,
-                out int leftInset,
-                out int topInset,
-                out int rightInset,
-                out int bottomInset))
+        if (!_frameInsetsCache.TryGetValue(handle, out var insets))
         {
-            return;
+            if (!NativeMethods.TryGetWindowFrameInsets(
+                    handle,
+                    out int leftInset,
+                    out int topInset,
+                    out int rightInset,
+                    out int bottomInset))
+            {
+                return;
+            }
+
+            insets = (leftInset, topInset, rightInset, bottomInset);
+            _frameInsetsCache[handle] = insets;
         }
 
-        windowX -= leftInset;
-        windowY -= topInset;
-        windowWidth += leftInset + rightInset;
-        windowHeight += topInset + bottomInset;
+        windowX -= insets.Left;
+        windowY -= insets.Top;
+        windowWidth += insets.Left + insets.Right;
+        windowHeight += insets.Top + insets.Bottom;
     }
 
     public void ReleaseManagedWindow(IntPtr handle)
@@ -350,6 +362,7 @@ public class WindowManager
 
         _managedWindowStates.Remove(handle);
         _lastAsyncPos.Remove(handle);
+        _frameInsetsCache.Remove(handle);
 
         if (!NativeMethods.IsWindow(handle))
             return;
@@ -412,6 +425,7 @@ public class WindowManager
     public void ForgetManagedWindow(IntPtr handle)
     {
         _managedWindowStates.Remove(handle);
+        _frameInsetsCache.Remove(handle);
     }
 
     public bool IsWindowValid(IntPtr handle)

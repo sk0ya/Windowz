@@ -313,7 +313,7 @@ public partial class MainWindow
         if (!TryGetManagedWindowBounds(out var totalBounds))
             return;
 
-        var windHwnd = new WindowInteropHelper(this).Handle;
+        var windHwnd = _mainWindowHandle;
 
         ApplyPinnedHalfInAppLayout(pinnedTab, activeTab, hasActiveTab, fractions, positionOnlyUpdate);
 
@@ -701,7 +701,7 @@ public partial class MainWindow
         var orderedWindowMembers = members.WindowMembers
             .OrderBy(member => member.Handle == primaryHandle ? 1 : 0)
             .ToList();
-        var windHwnd = new WindowInteropHelper(this).Handle;
+        var windHwnd = _mainWindowHandle;
 
         RunManagedWindowSync(() =>
         {
@@ -887,7 +887,7 @@ public partial class MainWindow
         if (widthDip <= 0 || heightDip <= 0)
             return false;
 
-        var hwnd = new WindowInteropHelper(this).Handle;
+        var hwnd = _mainWindowHandle;
         if (hwnd == IntPtr.Zero)
             return false;
 
