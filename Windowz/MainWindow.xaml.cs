@@ -366,6 +366,15 @@ public partial class MainWindow : Window
             }
         }
 
+        try
+        {
+            CloseFloatingTileSplitterOverlayWindow();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to close tile splitter overlay window: {ex.Message}");
+        }
+
         // Dispose all web tab controls
         foreach (var control in _webTabControls.Values.ToList())
         {

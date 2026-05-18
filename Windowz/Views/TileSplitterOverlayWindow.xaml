@@ -1,0 +1,15 @@
+<Window x:Class="WindowzTabManager.Views.TileSplitterOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title=""
+        AllowsTransparency="True"
+        WindowStyle="None"
+        Background="Transparent"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize">
+    <Canvas x:Name="SplitterCanvasRoot"
+            UseLayoutRounding="True"
+            SnapsToDevicePixels="True"/>
+</Window>

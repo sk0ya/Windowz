@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using WindowzTabManager.Models;
+using WindowzTabManager.Views;
 
 namespace WindowzTabManager;
 
@@ -37,6 +39,7 @@ public partial class MainWindow
     private TileLayout? _dragTileSplitterLayout;
     private PinnedHalfLayout? _dragPinnedHalfLayout;
     private FrameworkElement? _dragTileSplitterElement;
+    private TileSplitterOverlayWindow? _tileSplitterOverlayWindow;
     private double _dragTileSplitterVerticalSplit;
     private double _dragTileSplitterHorizontalSplit;
 
@@ -55,25 +58,30 @@ public partial class MainWindow
             return;
         }
 
-        TileSplitterCanvas.Visibility = Visibility.Visible;
+        bool useFloatingOverlay = UsesFullHostManagedSurfaceHole(tile);
+        if (!TryGetTileSplitterCanvas(useFloatingOverlay, out var canvas))
+        {
+            HideTileSplitterOverlay();
+            return;
+        }
 
         int expectedSplitterCount = GetExpectedTileSplitterCount(tile.Tabs.Count);
         if (!_isDraggingTileSplitter ||
-            TileSplitterCanvas.Children.Count != expectedSplitterCount)
+            canvas.Children.Count != expectedSplitterCount)
         {
-            RebuildTileSplitterOverlay(tile.Tabs.Count);
+            RebuildTileSplitterOverlay(canvas, tile.Tabs.Count);
         }
 
         if (_isDraggingTileSplitter && ReferenceEquals(tile, _dragTileSplitterLayout))
         {
             PositionTileSplitterOverlay(
-                tile,
+                canvas,
                 _dragTileSplitterVerticalSplit,
                 _dragTileSplitterHorizontalSplit);
             return;
         }
 
-        PositionTileSplitterOverlay(tile);
+        PositionTileSplitterOverlay(canvas, tile.VerticalSplit, tile.HorizontalSplit);
     }
 
     private void HideTileSplitterOverlay()
@@ -83,6 +91,7 @@ public partial class MainWindow
 
         TileSplitterCanvas.Children.Clear();
         TileSplitterCanvas.Visibility = Visibility.Collapsed;
+        HideFloatingTileSplitterOverlay();
     }
 
     private static int GetExpectedTileSplitterCount(int tileCount)
@@ -96,41 +105,55 @@ public partial class MainWindow
         };
     }
 
-    private void RebuildTileSplitterOverlay(int tileCount)
+    private void RebuildTileSplitterOverlay(Canvas canvas, int tileCount)
     {
-        TileSplitterCanvas.Children.Clear();
+        canvas.Children.Clear();
 
         switch (tileCount)
         {
             case 2:
-                AddTileSplitter(TileSplitterKind.Vertical, TileSplitterSegment.Full);
+                AddTileSplitter(canvas, TileSplitterKind.Vertical, TileSplitterSegment.Full);
                 break;
             case 3:
-                AddTileSplitter(TileSplitterKind.Vertical, TileSplitterSegment.Full);
-                AddTileSplitter(TileSplitterKind.Horizontal, TileSplitterSegment.Right);
+                AddTileSplitter(canvas, TileSplitterKind.Vertical, TileSplitterSegment.Full);
+                AddTileSplitter(canvas, TileSplitterKind.Horizontal, TileSplitterSegment.Right);
                 break;
             default:
-                AddTileSplitter(TileSplitterKind.Vertical, TileSplitterSegment.Top);
-                AddTileSplitter(TileSplitterKind.Vertical, TileSplitterSegment.Bottom);
-                AddTileSplitter(TileSplitterKind.Horizontal, TileSplitterSegment.Left);
-                AddTileSplitter(TileSplitterKind.Horizontal, TileSplitterSegment.Right);
-                AddTileSplitter(TileSplitterKind.Both, TileSplitterSegment.Center);
+                AddTileSplitter(canvas, TileSplitterKind.Vertical, TileSplitterSegment.Top);
+                AddTileSplitter(canvas, TileSplitterKind.Vertical, TileSplitterSegment.Bottom);
+                AddTileSplitter(canvas, TileSplitterKind.Horizontal, TileSplitterSegment.Left);
+                AddTileSplitter(canvas, TileSplitterKind.Horizontal, TileSplitterSegment.Right);
+                AddTileSplitter(canvas, TileSplitterKind.Both, TileSplitterSegment.Center);
                 break;
         }
     }
 
-    private void AddTileSplitter(TileSplitterKind kind, TileSplitterSegment segment)
+    private void AddTileSplitter(Canvas canvas, TileSplitterKind kind, TileSplitterSegment segment)
     {
-        TileSplitterCanvas.Children.Add(CreateTileSplitter(kind, segment));
+        canvas.Children.Add(CreateTileSplitter(kind, segment));
     }
 
     private void PositionTileSplitterOverlay(TileLayout tile)
     {
-        PositionTileSplitterOverlay(tile, tile.VerticalSplit, tile.HorizontalSplit);
+        if (!TryGetTileSplitterCanvas(UsesFullHostManagedSurfaceHole(tile), out var canvas))
+            return;
+
+        PositionTileSplitterOverlay(canvas, tile.VerticalSplit, tile.HorizontalSplit);
     }
 
     private void PositionTileSplitterOverlay(
         TileLayout tile,
+        double verticalSplit,
+        double horizontalSplit)
+    {
+        if (!TryGetTileSplitterCanvas(UsesFullHostManagedSurfaceHole(tile), out var canvas))
+            return;
+
+        PositionTileSplitterOverlay(canvas, verticalSplit, horizontalSplit);
+    }
+
+    private void PositionTileSplitterOverlay(
+        Canvas canvas,
         double verticalSplit,
         double horizontalSplit)
     {
@@ -139,7 +162,7 @@ public partial class MainWindow
         double verticalX = verticalSplit * width;
         double horizontalY = horizontalSplit * height;
 
-        foreach (UIElement child in TileSplitterCanvas.Children)
+        foreach (UIElement child in canvas.Children)
         {
             if (child is not FrameworkElement element ||
                 element.Tag is not TileSplitterTag tag)
@@ -409,7 +432,7 @@ public partial class MainWindow
             return;
         }
 
-        var point = e.GetPosition(WindowHostContainer);
+        var point = GetTileSplitterPointRelativeToHost(sender, e);
 
         if (_dragTileSplitterLayout != null)
         {
@@ -563,5 +586,169 @@ public partial class MainWindow
         {
             UpdateManagedWindowLayout(activate: false);
         }
+    }
+
+    private void UpdateTileSplitterOverlay(
+        PinnedHalfLayout pinnedHalf,
+        (double Left, double Top, double Width, double Height)[] fractions)
+    {
+        if (WindowHostContainer.ActualWidth <= 0 ||
+            WindowHostContainer.ActualHeight <= 0 ||
+            _viewModel.IsWindowPickerOpen ||
+            _viewModel.IsCommandPaletteOpen)
+        {
+            HideTileSplitterOverlay();
+            return;
+        }
+
+        bool useFloatingOverlay = UsesFullHostManagedSurfaceHole(pinnedHalf);
+        if (!TryGetTileSplitterCanvas(useFloatingOverlay, out var canvas))
+        {
+            HideTileSplitterOverlay();
+            return;
+        }
+
+        if (!_isDraggingTileSplitter || canvas.Children.Count != 1)
+            RebuildTileSplitterOverlay(canvas, 2);
+
+        if (_isDraggingTileSplitter && ReferenceEquals(pinnedHalf, _dragPinnedHalfLayout))
+        {
+            PositionPinnedHalfSplitterOverlay(canvas, _dragTileSplitterVerticalSplit);
+            return;
+        }
+
+        PositionPinnedHalfSplitterOverlay(canvas, pinnedHalf.SplitRatio);
+    }
+
+    private void PositionPinnedHalfSplitterOverlay(PinnedHalfLayout pinnedHalf, double splitRatio)
+    {
+        if (!TryGetTileSplitterCanvas(UsesFullHostManagedSurfaceHole(pinnedHalf), out var canvas))
+            return;
+
+        PositionPinnedHalfSplitterOverlay(canvas, splitRatio);
+    }
+
+    private void PositionPinnedHalfSplitterOverlay(Canvas canvas, double splitRatio)
+    {
+        double width = WindowHostContainer.ActualWidth;
+        double height = WindowHostContainer.ActualHeight;
+        double splitX = splitRatio * width;
+
+        foreach (UIElement child in canvas.Children)
+        {
+            if (child is FrameworkElement element && element.Tag is TileSplitterTag)
+            {
+                SetTileSplitterBounds(element, splitX - TileSplitterGapDip / 2.0, 0, TileSplitterGapDip, height);
+            }
+        }
+    }
+
+    private Point GetTileSplitterPointRelativeToHost(object sender, MouseEventArgs e)
+    {
+        if (sender is DependencyObject dependencyObject &&
+            _tileSplitterOverlayWindow != null &&
+            Window.GetWindow(dependencyObject) == _tileSplitterOverlayWindow)
+        {
+            Point overlayPoint = e.GetPosition(_tileSplitterOverlayWindow.SplitterCanvas);
+            Point screenPoint = _tileSplitterOverlayWindow.SplitterCanvas.PointToScreen(overlayPoint);
+            return WindowHostContainer.PointFromScreen(screenPoint);
+        }
+
+        return e.GetPosition(WindowHostContainer);
+    }
+
+    private bool TryGetTileSplitterCanvas(bool useFloatingOverlay, out Canvas canvas)
+    {
+        if (useFloatingOverlay)
+        {
+            TileSplitterCanvas.Children.Clear();
+            TileSplitterCanvas.Visibility = Visibility.Collapsed;
+            return TryPrepareFloatingTileSplitterOverlay(out canvas);
+        }
+
+        HideFloatingTileSplitterOverlay();
+        canvas = TileSplitterCanvas;
+        canvas.Visibility = Visibility.Visible;
+        return true;
+    }
+
+    private bool TryPrepareFloatingTileSplitterOverlay(out Canvas canvas)
+    {
+        canvas = TileSplitterCanvas;
+
+        if (ContentPanel.ActualWidth <= 0 || ContentPanel.ActualHeight <= 0)
+            return false;
+
+        var window = EnsureTileSplitterOverlayWindow();
+        var (dpiScaleX, dpiScaleY) = GetCurrentDpiScale();
+        Point screenPoint = ContentPanel.PointToScreen(new Point(0, 0));
+
+        window.Left = screenPoint.X / dpiScaleX;
+        window.Top = screenPoint.Y / dpiScaleY;
+        window.Width = ContentPanel.ActualWidth;
+        window.Height = ContentPanel.ActualHeight;
+
+        if (!window.IsVisible)
+            window.Show();
+
+        BringFloatingTileSplitterOverlayToFront(window);
+        canvas = window.SplitterCanvas;
+        return true;
+    }
+
+    private TileSplitterOverlayWindow EnsureTileSplitterOverlayWindow()
+    {
+        if (_tileSplitterOverlayWindow != null)
+            return _tileSplitterOverlayWindow;
+
+        var window = new TileSplitterOverlayWindow { Owner = this };
+        window.Closed += TileSplitterOverlayWindow_Closed;
+        _tileSplitterOverlayWindow = window;
+        return window;
+    }
+
+    private void BringFloatingTileSplitterOverlayToFront(TileSplitterOverlayWindow window)
+    {
+        IntPtr hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero)
+            return;
+
+        NativeMethods.SetWindowPos(
+            hwnd,
+            NativeMethods.HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            NativeMethods.SWP_NOMOVE |
+            NativeMethods.SWP_NOSIZE |
+            NativeMethods.SWP_NOACTIVATE);
+    }
+
+    private void HideFloatingTileSplitterOverlay()
+    {
+        if (_tileSplitterOverlayWindow == null)
+            return;
+
+        _tileSplitterOverlayWindow.SplitterCanvas.Children.Clear();
+        if (_tileSplitterOverlayWindow.IsVisible)
+            _tileSplitterOverlayWindow.Hide();
+    }
+
+    private void TileSplitterOverlayWindow_Closed(object? sender, EventArgs e)
+    {
+        if (_tileSplitterOverlayWindow == null)
+            return;
+
+        _tileSplitterOverlayWindow.Closed -= TileSplitterOverlayWindow_Closed;
+        _tileSplitterOverlayWindow = null;
+    }
+
+    private void CloseFloatingTileSplitterOverlayWindow()
+    {
+        if (_tileSplitterOverlayWindow == null)
+            return;
+
+        _tileSplitterOverlayWindow.Close();
     }
 }

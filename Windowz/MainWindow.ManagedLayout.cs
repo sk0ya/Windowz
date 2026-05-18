@@ -513,48 +513,6 @@ public partial class MainWindow
         _activeManagedWindowHandle = handle;
     }
 
-    private void UpdateTileSplitterOverlay(
-        PinnedHalfLayout pinnedHalf,
-        (double Left, double Top, double Width, double Height)[] fractions)
-    {
-        if (WindowHostContainer.ActualWidth <= 0 ||
-            WindowHostContainer.ActualHeight <= 0 ||
-            _viewModel.IsWindowPickerOpen ||
-            _viewModel.IsCommandPaletteOpen)
-        {
-            HideTileSplitterOverlay();
-            return;
-        }
-
-        TileSplitterCanvas.Visibility = Visibility.Visible;
-
-        if (!_isDraggingTileSplitter || TileSplitterCanvas.Children.Count != 1)
-            RebuildTileSplitterOverlay(2);
-
-        if (_isDraggingTileSplitter && ReferenceEquals(pinnedHalf, _dragPinnedHalfLayout))
-        {
-            PositionPinnedHalfSplitterOverlay(pinnedHalf, _dragTileSplitterVerticalSplit);
-            return;
-        }
-
-        PositionPinnedHalfSplitterOverlay(pinnedHalf, pinnedHalf.SplitRatio);
-    }
-
-    private void PositionPinnedHalfSplitterOverlay(PinnedHalfLayout pinnedHalf, double splitRatio)
-    {
-        double width = WindowHostContainer.ActualWidth;
-        double height = WindowHostContainer.ActualHeight;
-        double splitX = splitRatio * width;
-
-        foreach (UIElement child in TileSplitterCanvas.Children)
-        {
-            if (child is FrameworkElement element && element.Tag is TileSplitterTag)
-            {
-                SetTileSplitterBounds(element, splitX - TileSplitterGapDip / 2.0, 0, TileSplitterGapDip, height);
-            }
-        }
-    }
-
     private void UpdateTileLayout(TileLayout tile, bool activate, bool positionOnlyUpdate = false)
     {
         var fractions = tile.GetLayoutFractions();
@@ -1041,6 +999,13 @@ public partial class MainWindow
                 if (tile == null)
                     return false;
 
+                if (UsesFullHostManagedSurfaceHole(tile) &&
+                    TryClipRegionRect(hostBounds, windowWidth, windowHeight, out var fullTileBounds))
+                {
+                    holeRects.Add(fullTileBounds);
+                    return true;
+                }
+
                 var fractions = tile.GetLayoutFractions();
                 var members = ClassifyTileMembers(tile, fractions.Length);
                 foreach (var (_, _, index) in members.WindowMembers)
@@ -1061,6 +1026,13 @@ public partial class MainWindow
                 var pinnedHalf = target.PinnedHalf;
                 if (pinnedHalf == null)
                     return false;
+
+                if (UsesFullHostManagedSurfaceHole(pinnedHalf) &&
+                    TryClipRegionRect(hostBounds, windowWidth, windowHeight, out var fullPinnedBounds))
+                {
+                    holeRects.Add(fullPinnedBounds);
+                    return true;
+                }
 
                 var pinnedFractions = pinnedHalf.GetLayoutFractions();
                 var activeTab = _viewModel.SelectedTab;
@@ -1155,5 +1127,30 @@ public partial class MainWindow
     {
         return $"{windowWidth}x{windowHeight}:{string.Join(";", holeRects.Select(rect =>
             $"{rect.Left},{rect.Top},{rect.Right},{rect.Bottom}"))}";
+    }
+
+    private bool UsesFullHostManagedSurfaceHole(TileLayout tile)
+    {
+        var fractions = tile.GetLayoutFractions();
+        var members = ClassifyTileMembers(tile, fractions.Length);
+        return members.Count > 0 &&
+               members.WindowMembers.Count == members.Count;
+    }
+
+    private bool UsesFullHostManagedSurfaceHole(PinnedHalfLayout pinnedHalf)
+    {
+        var activeTab = _viewModel.SelectedTab;
+        return activeTab != null &&
+               activeTab != pinnedHalf.PinnedTab &&
+               IsExternallyManagedWindowTab(pinnedHalf.PinnedTab) &&
+               IsExternallyManagedWindowTab(activeTab);
+    }
+
+    private bool IsExternallyManagedWindowTab(TabItem? tab)
+    {
+        return tab != null &&
+               !tab.IsContentTab &&
+               !tab.IsWebTab &&
+               _tabManager.TryGetExternallyManagedWindowHandle(tab, out _);
     }
 }
