@@ -48,6 +48,12 @@ public partial class MainWindow : Window
     private bool _isTabBarCollapsed;
     private string? _managedSurfaceRegionKey;
     private bool _wasMinimized;
+    // 最小化から復元した直後のアクティベーションでは、タスクバークリック最小化判定を
+    // スキップする。マネージドアプリのタスクバーボタンをクリックして復元した際に
+    // OnForegroundWindowChanged が Windowz も復元し MainWindow_Activated が発火するが、
+    // その時点でカーソルはタスクバー上・_lastNonTaskbarForegroundWindow はマネージドアプリと
+    // なるため TryMinimizeWindowzFromTaskbarActivation が誤検知して即再最小化してしまう。
+    private bool _wasJustRestoredFromMinimize;
     private readonly Dictionary<Guid, WebTabControl> _webTabControls = new();
     private Guid? _currentWebTabId;
     private bool _isTileModeActive;
@@ -456,6 +462,7 @@ public partial class MainWindow : Window
             // Allow UpdateManagedWindowLayout to bring the managed window to the
             // foreground regardless of whether the handle has changed since minimize.
             _activeManagedWindowHandle = IntPtr.Zero;
+            _wasJustRestoredFromMinimize = true;
         }
 
         _wasMinimized = WindowState == WindowState.Minimized;

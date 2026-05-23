@@ -135,6 +135,17 @@ public partial class MainWindow
             return false;
         }
 
+        // 最小化から復元した直後のアクティベーションでは最小化判定をスキップする。
+        // マネージドアプリのタスクバーボタンをクリックした際、OnForegroundWindowChanged が
+        // Windowz を復元してから MainWindow_Activated が発火するが、そのタイミングでは
+        // カーソルがタスクバー上かつ _lastNonTaskbarForegroundWindow がマネージドアプリを
+        // 指しているため、誤ってフォアグラウンド最小化と判定されてしまう。
+        if (_wasJustRestoredFromMinimize)
+        {
+            _wasJustRestoredFromMinimize = false;
+            return false;
+        }
+
         var currentManagedHandle = GetCurrentActiveManagedWindowHandle();
         if (currentManagedHandle == IntPtr.Zero)
             return false;
