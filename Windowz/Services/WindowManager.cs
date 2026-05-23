@@ -211,7 +211,8 @@ public class WindowManager
             if (_lastAsyncPos.TryGetValue(handle, out var last) &&
                 last.x == windowX && last.y == windowY && last.w == windowWidth && last.h == windowHeight)
             {
-                // Z-order / フォアグラウンド操作はないのでそのまま返る
+                if (setZOrder)
+                    RepairManagedWindowZOrder(handle, windWindowHandle);
                 return;
             }
 
@@ -254,12 +255,48 @@ public class WindowManager
         if (bringToFront && windWindowHandle != default && NativeMethods.IsWindow(windWindowHandle) &&
             NativeMethods.GetWindow(handle, NativeMethods.GW_HWNDNEXT) != windWindowHandle)
         {
-            NativeMethods.SetWindowPos(
-                windWindowHandle,
-                handle,
-                0, 0, 0, 0,
-                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+            PlaceWindowzBehindManagedWindow(handle, windWindowHandle);
         }
+    }
+
+    private static void RepairManagedWindowZOrder(IntPtr handle, IntPtr windWindowHandle)
+    {
+        if (windWindowHandle != default &&
+            NativeMethods.IsWindow(windWindowHandle) &&
+            NativeMethods.GetWindow(handle, NativeMethods.GW_HWNDNEXT) == windWindowHandle)
+            return;
+
+        NativeMethods.SetWindowPos(
+            handle,
+            NativeMethods.HWND_TOP,
+            0,
+            0,
+            0,
+            0,
+            NativeMethods.SWP_NOMOVE |
+            NativeMethods.SWP_NOSIZE |
+            NativeMethods.SWP_NOACTIVATE);
+
+        if (windWindowHandle != default &&
+            NativeMethods.IsWindow(windWindowHandle) &&
+            NativeMethods.GetWindow(handle, NativeMethods.GW_HWNDNEXT) != windWindowHandle)
+        {
+            PlaceWindowzBehindManagedWindow(handle, windWindowHandle);
+        }
+    }
+
+    private static void PlaceWindowzBehindManagedWindow(IntPtr handle, IntPtr windWindowHandle)
+    {
+        NativeMethods.SetWindowPos(
+            windWindowHandle,
+            handle,
+            0,
+            0,
+            0,
+            0,
+            NativeMethods.SWP_NOMOVE |
+            NativeMethods.SWP_NOSIZE |
+            NativeMethods.SWP_NOACTIVATE);
     }
 
     /// <summary>

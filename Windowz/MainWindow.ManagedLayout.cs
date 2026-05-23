@@ -56,47 +56,32 @@ public partial class MainWindow
             case ManagedWindowLayoutMode.Tile:
                 _isTileModeActive = true;
                 UpdateTileLayout(target.Tile!, activate, positionOnlyUpdate);
-                if (!positionOnlyUpdate)
-                {
-                    UpdateManagedSurfaceRegion(target);
-                }
+                UpdateManagedSurfaceRegion(target);
                 return;
 
             case ManagedWindowLayoutMode.PinnedHalf:
                 ExitTileModeIfNeeded();
                 UpdatePinnedHalfLayout(target.PinnedHalf!, activate, positionOnlyUpdate);
-                if (!positionOnlyUpdate)
-                {
-                    UpdateManagedSurfaceRegion(target);
-                }
+                UpdateManagedSurfaceRegion(target);
                 return;
 
             case ManagedWindowLayoutMode.SingleWindow:
                 ExitTileModeIfNeeded();
                 UpdateSingleManagedWindowLayout(target.Handle, activate);
-                if (!positionOnlyUpdate)
-                {
-                    UpdateManagedSurfaceRegion(target);
-                }
+                UpdateManagedSurfaceRegion(target);
                 return;
 
             default:
                 if (ShouldPreserveTileLayoutState())
                 {
                     HideManagedWindows();
-                    if (!positionOnlyUpdate)
-                    {
-                        UpdateManagedSurfaceRegion(target);
-                    }
+                    UpdateManagedSurfaceRegion(target);
                     return;
                 }
 
                 ExitTileModeIfNeeded();
                 HideManagedWindows();
-                if (!positionOnlyUpdate)
-                {
-                    UpdateManagedSurfaceRegion(target);
-                }
+                UpdateManagedSurfaceRegion(target);
                 return;
         }
     }
@@ -318,12 +303,12 @@ public partial class MainWindow
         ApplyPinnedHalfInAppLayout(pinnedTab, activeTab, hasActiveTab, fractions, positionOnlyUpdate);
 
         // ピン留め側を配置
-        PlacePinnedWindowSlot(pinnedTab, fractions[0], totalBounds, positionOnlyUpdate);
+        PlacePinnedWindowSlot(pinnedTab, fractions[0], totalBounds);
 
         // アクティブタブ側を配置
         if (hasActiveTab && activeTab != null)
         {
-            PlaceActiveHalfSlot(activeTab, fractions[1], totalBounds, activate, positionOnlyUpdate);
+            PlaceActiveHalfSlot(activeTab, fractions[1], totalBounds, activate);
 
             // ピン留め側ウィンドウの移動にも Windowz が追従できるよう extra hook を設定する
             if (!pinnedTab.IsContentTab && !pinnedTab.IsWebTab &&
@@ -463,8 +448,7 @@ public partial class MainWindow
     private void PlacePinnedWindowSlot(
         TabItem pinnedTab,
         (double Left, double Top, double Width, double Height) fraction,
-        NativeMethods.RECT totalBounds,
-        bool positionOnlyUpdate)
+        NativeMethods.RECT totalBounds)
     {
         if (pinnedTab.IsContentTab || pinnedTab.IsWebTab) return;
 
@@ -484,8 +468,7 @@ public partial class MainWindow
         TabItem activeTab,
         (double Left, double Top, double Width, double Height) fraction,
         NativeMethods.RECT totalBounds,
-        bool activate,
-        bool positionOnlyUpdate)
+        bool activate)
     {
         if (activeTab.IsContentTab || activeTab.IsWebTab)
         {
