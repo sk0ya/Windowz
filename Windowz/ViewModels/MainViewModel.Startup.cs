@@ -205,9 +205,11 @@ public partial class MainViewModel
     {
         string? targetProcessName = TryGetProcessName(config.Path);
         IntPtr processMainWindowHandle = IntPtr.Zero;
+        int launchedProcessId = 0;
+        try { launchedProcessId = process.Id; } catch { }
 
-        // 最大 30回 × 100ms = 3秒待機（旧: 40回 × 250ms = 10秒）
-        for (int i = 0; i < 30; i++)
+        // 最大 50回 × 100ms = 5秒待機
+        for (int i = 0; i < 50; i++)
         {
             try
             {
@@ -235,6 +237,7 @@ public partial class MainViewModel
                 targetProcessName,
                 preExistingWindows,
                 processMainWindowHandle,
+                launchedProcessId,
                 preferNewWindow: true);
             if (candidate != null)
             {
@@ -242,7 +245,7 @@ public partial class MainViewModel
                 return candidate;
             }
 
-            await Task.Delay(100);  // 250ms → 100ms
+            await Task.Delay(100);
         }
 
         var finalWindows = _windowManager.EnumerateWindows();
@@ -252,6 +255,7 @@ public partial class MainViewModel
             targetProcessName,
             preExistingWindows,
             processMainWindowHandle,
+            launchedProcessId,
             preferNewWindow: false);
         if (fallback != null)
         {
@@ -267,6 +271,7 @@ public partial class MainViewModel
         string? targetProcessName,
         HashSet<IntPtr>? preExistingWindows,
         IntPtr processMainWindowHandle,
+        int launchedProcessId,
         bool preferNewWindow)
     {
         var candidates = windows.Where(w => w.Handle != IntPtr.Zero);
@@ -280,6 +285,14 @@ public partial class MainViewModel
 
         if (preferNewWindow && preExistingWindows != null)
             candidates = candidates.Where(w => !preExistingWindows.Contains(w.Handle));
+
+        // PIDで直接照合（パス取得が失敗するケースでも確実に一致させる）
+        if (launchedProcessId != 0)
+        {
+            var byPid = candidates.FirstOrDefault(w => w.ProcessId == launchedProcessId);
+            if (byPid != null)
+                return byPid;
+        }
 
         var byPath = candidates.FirstOrDefault(w =>
             !string.IsNullOrWhiteSpace(w.ExecutablePath) &&
@@ -302,9 +315,9 @@ public partial class MainViewModel
                 return byExplorer;
         }
 
-        if (preferNewWindow)
-            return candidates.FirstOrDefault();
-
+        // candidates.FirstOrDefault() は意図しないウィンドウ横取りを引き起こすため削除。
+        // 複数アプリ並列起動時にタスクBが未発見のアプリAのウィンドウを先取りしてしまう
+        // レースコンディションを防ぐ。
         return null;
     }
 
