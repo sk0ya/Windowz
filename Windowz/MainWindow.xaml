@@ -420,35 +420,73 @@
                                       ItemsPanel="{StaticResource HorizontalTabPanel}"
                                       ItemTemplate="{StaticResource HorizontalTabItemTemplate}"/>
 
-                        <!-- Add Window Button -->
-                        <Button x:Name="AddWindowButton" Content="+"
-                                Click="AddWindowButton_Click"
-                                PreviewMouseLeftButtonDown="WindowControlButton_PreviewMouseLeftButtonDown"
-                                Width="36" Height="36"
-                                FontSize="16" FontWeight="Light"
-                                Background="Transparent" BorderThickness="0"
-                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                Cursor="Hand"
-                                ToolTip="Add Window">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border Background="{TemplateBinding Background}">
-                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
+                        <!-- Add Window Button + Quick Launch Button (横並び) -->
+                        <Grid x:Name="AddButtonsPanel">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition x:Name="QuickLaunchButtonColumn" Width="0"/>
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="AddWindowButton" Content="+"
+                                    Grid.Column="0"
+                                    Click="AddWindowButton_Click"
+                                    PreviewMouseLeftButtonDown="WindowControlButton_PreviewMouseLeftButtonDown"
+                                    Height="36"
+                                    FontSize="16" FontWeight="Light"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                    Cursor="Hand"
+                                    ToolTip="Add Window">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}">
+                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <!-- Quick Launch Button (Left/Right mode only) -->
+                            <Button x:Name="QuickLaunchSidebarButton"
+                                    Grid.Column="1"
+                                    PreviewMouseLeftButtonDown="WindowControlButton_PreviewMouseLeftButtonDown"
+                                    Height="36"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                    Cursor="Hand"
+                                    Visibility="Collapsed"
+                                    ToolTip="Quick Launch">
+                                <ui:SymbolIcon Symbol="Flash24" FontSize="14"/>
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}">
+                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
                     </StackPanel>
                 </ScrollViewer>
 

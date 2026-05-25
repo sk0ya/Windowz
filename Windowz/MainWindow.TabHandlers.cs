@@ -59,6 +59,9 @@ public partial class MainWindow
         if (ReferenceEquals(button, CloseButton))
             return WindowControlAction.Close;
 
+        if (ReferenceEquals(button, QuickLaunchSidebarButton))
+            return WindowControlAction.QuickLaunch;
+
         return WindowControlAction.None;
     }
 
@@ -98,6 +101,11 @@ public partial class MainWindow
             case WindowControlAction.Close:
                 ClearWindowControlAction();
                 Close();
+                break;
+
+            case WindowControlAction.QuickLaunch:
+                ClearWindowControlAction();
+                _viewModel.OpenContentTabCommand.Execute("QuickLaunch");
                 break;
         }
     }

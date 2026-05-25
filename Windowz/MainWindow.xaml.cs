@@ -21,7 +21,8 @@ public partial class MainWindow : Window
         Menu,
         Minimize,
         Maximize,
-        Close
+        Close,
+        QuickLaunch
     }
 
     private readonly MainViewModel _viewModel;

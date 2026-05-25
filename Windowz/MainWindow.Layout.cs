@@ -57,6 +57,8 @@ public partial class MainWindow
         // Reset collapsed state
         _isTabBarCollapsed = false;
         AddWindowButton.Visibility = Visibility.Visible;
+        QuickLaunchButtonColumn.Width = new GridLength(0);
+        QuickLaunchSidebarButton.Visibility = Visibility.Collapsed;
     }
 
     private void ApplyTabHeaderPosition(string position)
@@ -81,9 +83,9 @@ public partial class MainWindow
             TabScrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
             TabScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
             WindowControlsPanel.Orientation = Orientation.Horizontal;
-            AddWindowButton.Width = double.NaN;
-            AddWindowButton.Height = 36;
-            AddWindowButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+            // QuickLaunch列を展開してボタンを表示
+            QuickLaunchButtonColumn.Width = new GridLength(1, GridUnitType.Star);
+            QuickLaunchSidebarButton.Visibility = Visibility.Visible;
 
             // Set accent bar side: Left position → right accent, Right position → left accent
             Resources["VerticalTabAccentThickness"] = position == "Left"
@@ -100,6 +102,8 @@ public partial class MainWindow
             WindowControlsPanel.Orientation = Orientation.Horizontal;
             AddWindowButton.Width = 36;
             AddWindowButton.Height = 36;
+            QuickLaunchButtonColumn.Width = new GridLength(0);
+            QuickLaunchSidebarButton.Visibility = Visibility.Collapsed;
 
             // Set accent bar side: Bottom position → top accent, Top position → bottom accent
             Resources["HorizontalTabAccentThickness"] = position == "Bottom"
