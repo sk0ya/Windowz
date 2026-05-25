@@ -12,6 +12,7 @@ namespace WindowzTabManager;
 public partial class App : Application
 {
     private readonly IServiceProvider _serviceProvider;
+    private Mutex? _instanceMutex;
 
     internal static SettingsManager SettingsManager => GetService<SettingsManager>();
 
@@ -79,6 +80,15 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        _instanceMutex = new Mutex(true, "WindowzTabManager_SingleInstance", out bool createdNew);
+        if (!createdNew)
+        {
+            ActivateExistingInstance();
+            _instanceMutex.Dispose();
+            Shutdown();
+            return;
+        }
 
         // Register last-resort cleanup for abnormal exit (e.g. unhandled exceptions).
         // Note: This does NOT fire when the process is killed via Process.Kill/taskkill.
@@ -204,6 +214,30 @@ public partial class App : Application
         catch
         {
             // Best-effort cleanup.
+        }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _instanceMutex?.ReleaseMutex();
+        _instanceMutex?.Dispose();
+        base.OnExit(e);
+    }
+
+    private static void ActivateExistingInstance()
+    {
+        var current = Process.GetCurrentProcess();
+        foreach (var proc in Process.GetProcessesByName(current.ProcessName))
+        {
+            if (proc.Id == current.Id)
+                continue;
+            var hwnd = proc.MainWindowHandle;
+            if (hwnd == IntPtr.Zero)
+                continue;
+            if (NativeMethods.IsIconic(hwnd))
+                NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+            NativeMethods.ForceForegroundWindow(hwnd);
+            break;
         }
     }
 
