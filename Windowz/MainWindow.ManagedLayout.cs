@@ -327,8 +327,10 @@ public partial class MainWindow
         // ピン留め＋アクティブのウィンドウをWindowzより前面へ
         if (keepHandles.Count >= 2)
         {
-            RunManagedWindowSync(() => RaiseTileWindowsAboveWindowz(windHwnd, keepHandles),
-                ManagedWindowEventIgnoreDurationMs);
+            RunManagedWindowSync(() =>
+            {
+                _topManagedWindowHwnd = RaiseTileWindowsAboveWindowz(windHwnd, keepHandles);
+            }, ManagedWindowEventIgnoreDurationMs);
         }
 
         UpdateTileSplitterOverlay(pinnedHalf, fractions);
@@ -671,7 +673,7 @@ public partial class MainWindow
                     setZOrder: false);
             }
 
-            RaiseTileWindowsAboveWindowz(
+            _topManagedWindowHwnd = RaiseTileWindowsAboveWindowz(
                 windHwnd,
                 orderedWindowMembers.Select(member => member.Handle));
         }, ManagedWindowEventIgnoreDurationMs);
@@ -693,10 +695,10 @@ public partial class MainWindow
         return members.WindowMembers[0].Handle;
     }
 
-    private static void RaiseTileWindowsAboveWindowz(IntPtr windHwnd, IEnumerable<IntPtr> tileHandles)
+    private static IntPtr RaiseTileWindowsAboveWindowz(IntPtr windHwnd, IEnumerable<IntPtr> tileHandles)
     {
         if (windHwnd == IntPtr.Zero || !NativeMethods.IsWindow(windHwnd))
-            return;
+            return IntPtr.Zero;
 
         IntPtr insertAfter = windHwnd;
 
@@ -722,6 +724,8 @@ public partial class MainWindow
 
             insertAfter = handle;
         }
+
+        return insertAfter;
     }
 
     private async Task InitWebTabForTileAsync(TabItem tab)
@@ -788,6 +792,7 @@ public partial class MainWindow
                     bounds.Width,
                     bounds.Height);
             }
+            MoveFloatingTileSplitterOverlayDuringDrag();
             return;
         }
 
@@ -813,6 +818,7 @@ public partial class MainWindow
                 _windowManager.MoveManagedWindowAsync(activeHandle, ab.Left, ab.Top, ab.Width, ab.Height);
             }
 
+            MoveFloatingTileSplitterOverlayDuringDrag();
             return;
         }
 

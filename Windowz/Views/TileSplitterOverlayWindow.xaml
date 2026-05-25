@@ -7,7 +7,6 @@
         Background="Transparent"
         ShowActivated="False"
         ShowInTaskbar="False"
-        Topmost="True"
         ResizeMode="NoResize">
     <Canvas x:Name="SplitterCanvasRoot"
             UseLayoutRounding="True"

@@ -42,6 +42,7 @@ public partial class MainWindow
     private TileSplitterOverlayWindow? _tileSplitterOverlayWindow;
     private double _dragTileSplitterVerticalSplit;
     private double _dragTileSplitterHorizontalSplit;
+    private IntPtr _topManagedWindowHwnd;
 
     private void UpdateTileSplitterOverlay(
         TileLayout tile,
@@ -713,9 +714,15 @@ public partial class MainWindow
         if (hwnd == IntPtr.Zero)
             return;
 
+        // 管理ウィンドウの直上に配置する。HWND_TOPMOST は使わない（他アプリの上に
+        // 線が飛び出して見える問題を防ぐため）。
+        IntPtr insertAfter = _topManagedWindowHwnd != IntPtr.Zero && NativeMethods.IsWindow(_topManagedWindowHwnd)
+            ? _topManagedWindowHwnd
+            : NativeMethods.HWND_TOP;
+
         NativeMethods.SetWindowPos(
             hwnd,
-            NativeMethods.HWND_TOPMOST,
+            insertAfter,
             0,
             0,
             0,
@@ -723,6 +730,17 @@ public partial class MainWindow
             NativeMethods.SWP_NOMOVE |
             NativeMethods.SWP_NOSIZE |
             NativeMethods.SWP_NOACTIVATE);
+    }
+
+    private void MoveFloatingTileSplitterOverlayDuringDrag()
+    {
+        if (_tileSplitterOverlayWindow == null || !_tileSplitterOverlayWindow.IsVisible)
+            return;
+
+        var (dpiScaleX, dpiScaleY) = GetCurrentDpiScale();
+        Point screenPoint = ContentPanel.PointToScreen(new Point(0, 0));
+        _tileSplitterOverlayWindow.Left = screenPoint.X / dpiScaleX;
+        _tileSplitterOverlayWindow.Top = screenPoint.Y / dpiScaleY;
     }
 
     private void HideFloatingTileSplitterOverlay()
