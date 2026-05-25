@@ -9,7 +9,6 @@ public partial class SettingsTabsPage : UserControl
         GeneralSettingsViewModel generalSettingsViewModel,
         HotkeySettingsViewModel hotkeySettingsViewModel,
         StartupSettingsViewModel startupSettingsViewModel,
-        QuickLaunchSettingsViewModel quickLaunchSettingsViewModel,
         ApplicationLaunchSettingsViewModel applicationLaunchSettingsViewModel,
         ProcessInfoViewModel processInfoViewModel)
     {
@@ -18,7 +17,6 @@ public partial class SettingsTabsPage : UserControl
         GeneralTab.Content = new GeneralSettingsPage(generalSettingsViewModel);
         HotkeyTab.Content = new HotkeySettingsPage(hotkeySettingsViewModel);
         StartupTab.Content = new StartupSettingsPage(startupSettingsViewModel);
-        QuickLaunchTab.Content = new QuickLaunchSettingsPage(quickLaunchSettingsViewModel);
         AppLaunchTab.Content = new ApplicationLaunchSettingsPage(applicationLaunchSettingsViewModel);
         ProcessInfoTab.Content = new ProcessInfoPage(processInfoViewModel);
     }
@@ -29,7 +27,6 @@ public partial class SettingsTabsPage : UserControl
         {
             "HotkeySettings" => HotkeyTab,
             "StartupSettings" => StartupTab,
-            "QuickLaunchSettings" => QuickLaunchTab,
             "AppLaunchSettings" => AppLaunchTab,
             "ProcessInfo" => ProcessInfoTab,
             _ => GeneralTab
@@ -53,12 +50,6 @@ public partial class SettingsTabsPage : UserControl
             startupPage.DataContext is StartupSettingsViewModel startupVm)
         {
             startupVm.Reload();
-        }
-        else if (ReferenceEquals(SettingsTabControl.SelectedItem, QuickLaunchTab) &&
-                 QuickLaunchTab.Content is QuickLaunchSettingsPage quickLaunchPage &&
-                 quickLaunchPage.DataContext is QuickLaunchSettingsViewModel quickLaunchVm)
-        {
-            quickLaunchVm.Reload();
         }
         else if (ReferenceEquals(SettingsTabControl.SelectedItem, AppLaunchTab) &&
                  AppLaunchTab.Content is ApplicationLaunchSettingsPage appLaunchPage &&

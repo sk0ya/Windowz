@@ -141,9 +141,9 @@ public partial class MainWindow
         OpenSettingsTab("StartupSettings");
     }
 
-    private void OpenQuickLaunchSettings_Click(object sender, RoutedEventArgs e)
+    private void OpenQuickLaunchTab_Click(object sender, RoutedEventArgs e)
     {
-        OpenSettingsTab("QuickLaunchSettings");
+        _viewModel.OpenContentTabCommand.Execute("QuickLaunch");
     }
 
     private void OpenSettingsTab_Click(object sender, RoutedEventArgs e)

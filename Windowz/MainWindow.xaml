@@ -476,6 +476,11 @@
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator/>
+                                <MenuItem Header="Quick Launch" Click="OpenQuickLaunchTab_Click">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon Symbol="Flash24" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
                                 <MenuItem Header="設定" Click="OpenSettingsTab_Click">
                                     <MenuItem.Icon>
                                         <ui:SymbolIcon Symbol="Settings24" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>

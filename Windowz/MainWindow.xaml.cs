@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     private int _dragCursorOriginY;
     private DispatcherTimer? _dragPollTimer;
     private SettingsTabsPage? _settingsTabsPage;
+    private Views.Settings.QuickLaunchSettingsPage? _quickLaunchPage;
     private string _pendingSettingsContentKey = "GeneralSettings";
     private string _currentTabPosition = "Top";
     private bool _isTabBarCollapsed;
@@ -102,14 +103,6 @@ public partial class MainWindow : Window
             _viewModel.CloseWindowPickerCommand.Execute(null);
             RestoreEmbeddedWindow();
         };
-        pickerVm.QuickLaunchSettingsRequested += (s, e) =>
-        {
-            _viewModel.CloseWindowPickerCommand.Execute(null);
-            // Settings replaces the current content immediately, so restoring the
-            // previously active embedded/tiled content here only creates a
-            // transient foreground jump for WebView2.
-            OpenSettingsTab("QuickLaunchSettings");
-        };
         pickerVm.WebTabRequested += (s, url) =>
         {
             _viewModel.CloseWindowPickerCommand.Execute(null);
@@ -144,6 +137,14 @@ public partial class MainWindow : Window
         };
 
         _tabManager.CloseWindRequested += (s, e) => { Close(); };
+
+        // QuickLaunch タイルグループ起動をピッカーVMのタイル起動ロジックに委譲
+        var quickLaunchVm = App.GetService<ViewModels.QuickLaunchSettingsViewModel>();
+        quickLaunchVm.TileGroupLaunchRequested += (s, tileGroupSetting) =>
+        {
+            var pickerVm = (ViewModels.WindowPickerViewModel)WindowPickerControl.DataContext;
+            pickerVm.LaunchQuickTileGroupCommand.Execute(tileGroupSetting);
+        };
 
         // Subscribe to tab position changes
         _settingsManager.TabHeaderPositionChanged += OnTabHeaderPositionChanged;

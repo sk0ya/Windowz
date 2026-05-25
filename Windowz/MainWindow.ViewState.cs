@@ -260,8 +260,9 @@ public partial class MainWindow
             "GeneralSettings" => GetSettingsTabsPage(),
             "HotkeySettings" => GetSettingsTabsPage(),
             "StartupSettings" => GetSettingsTabsPage(),
-            "QuickLaunchSettings" => GetSettingsTabsPage(),
+
             "ProcessInfo" => GetSettingsTabsPage(),
+            "QuickLaunch" => GetQuickLaunchPage(),
             _ => null
         };
 
@@ -284,6 +285,12 @@ public partial class MainWindow
     {
         _settingsTabsPage ??= App.GetService<SettingsTabsPage>();
         return _settingsTabsPage;
+    }
+
+    private Views.Settings.QuickLaunchSettingsPage GetQuickLaunchPage()
+    {
+        _quickLaunchPage ??= App.GetService<Views.Settings.QuickLaunchSettingsPage>();
+        return _quickLaunchPage;
     }
 
     #endregion

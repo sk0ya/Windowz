@@ -14,7 +14,7 @@ public partial class SettingsWindow : Window
     private readonly GeneralSettingsViewModel _generalSettingsViewModel;
     private readonly HotkeySettingsViewModel _hotkeySettingsViewModel;
     private readonly StartupSettingsViewModel _startupSettingsViewModel;
-    private readonly QuickLaunchSettingsViewModel _quickLaunchSettingsViewModel;
+
     private readonly ProcessInfoViewModel _processInfoViewModel;
     private bool _hotkeyManagerInitialized;
 
@@ -25,7 +25,7 @@ public partial class SettingsWindow : Window
         _generalSettingsViewModel = new GeneralSettingsViewModel(settingsManager);
         _hotkeySettingsViewModel = new HotkeySettingsViewModel(_hotkeyManager);
         _startupSettingsViewModel = new StartupSettingsViewModel(settingsManager);
-        _quickLaunchSettingsViewModel = new QuickLaunchSettingsViewModel(settingsManager);
+
         _processInfoViewModel = new ProcessInfoViewModel(getManagedWindows ?? (() => Enumerable.Empty<ManagedWindow>()));
 
         InitializeComponent();
@@ -36,7 +36,7 @@ public partial class SettingsWindow : Window
         GeneralTab.Content = new GeneralSettingsPage(_generalSettingsViewModel);
         HotkeyTab.Content = new HotkeySettingsPage(_hotkeySettingsViewModel);
         StartupTab.Content = new StartupSettingsPage(_startupSettingsViewModel);
-        QuickLaunchTab.Content = new QuickLaunchSettingsPage(_quickLaunchSettingsViewModel);
+
         var processInfoPage = new ProcessInfoPage(_processInfoViewModel);
         ProcessInfoTab.Content = processInfoPage;
         _processInfoViewModel.RefreshCommand.Execute(null);

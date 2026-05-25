@@ -19,75 +19,18 @@
         <Grid Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Quick Launch -->
-            <ScrollViewer Grid.Row="0" MaxHeight="160" Margin="0,0,0,12"
-                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                          Visibility="{Binding HasAnyQuickLaunch, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel>
-                    <!-- 単独アプリ -->
-                    <ItemsControl ItemsSource="{Binding QuickLaunchApps}"
-                                  Visibility="{Binding HasQuickLaunchApps, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <ui:Button Margin="0,0,8,8" Padding="12,8"
-                                           Appearance="Secondary"
-                                           Command="{Binding DataContext.LaunchQuickAppCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                           CommandParameter="{Binding}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="WindowConsole20" Margin="0,0,6,0"
-                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                    </StackPanel>
-                                </ui:Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <!-- タイルグループ -->
-                    <ItemsControl ItemsSource="{Binding QuickLaunchTileGroups}"
-                                  Visibility="{Binding HasQuickLaunchTileGroups, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <ui:Button Margin="0,0,8,8" Padding="12,8"
-                                           Appearance="Secondary"
-                                           Command="{Binding DataContext.LaunchQuickTileGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                           CommandParameter="{Binding}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="Grid24" Margin="0,0,6,0"
-                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                                    </StackPanel>
-                                </ui:Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </ScrollViewer>
-
             <!-- Search -->
-            <ui:TextBox Grid.Row="1" Margin="0,0,0,12"
+            <ui:TextBox Grid.Row="0" Margin="0,0,0,12"
                         PlaceholderText="Search windows..."
                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                         Icon="{ui:SymbolIcon Search24}"/>
 
             <!-- Window List -->
-            <Border Grid.Row="2" Background="{DynamicResource ControlFillColorDefaultBrush}"
+            <Border Grid.Row="1" Background="{DynamicResource ControlFillColorDefaultBrush}"
                     CornerRadius="8" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="1">
                 <ListView ItemsSource="{Binding WindowsView}"
@@ -137,11 +80,10 @@
             </Border>
 
             <!-- Buttons -->
-            <Grid Grid.Row="3" Margin="0,16,0,0">
+            <Grid Grid.Row="2" Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
@@ -160,13 +102,10 @@
                                Visibility="{Binding IsSelectedWindowElevated, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 </StackPanel>
 
-                <ui:Button Grid.Column="2" Content="QuickLaunch設定"
-                           Command="{Binding OpenQuickLaunchSettingsCommand}"
-                           Appearance="Secondary" Padding="16,8" Margin="0,0,8,0"/>
-                <ui:Button Grid.Column="3" Content="Cancel"
+                <ui:Button Grid.Column="2" Content="Cancel"
                            Command="{Binding CancelCommand}"
                            Appearance="Secondary" Padding="24,8" Margin="0,0,8,0"/>
-                <ui:Button Grid.Column="4" Content="Add Window"
+                <ui:Button Grid.Column="3" Content="Add Window"
                            Command="{Binding SelectCommand}"
                            Appearance="Primary" Padding="24,8"
                            IsEnabled="{Binding CanAddSelectedWindow}"/>

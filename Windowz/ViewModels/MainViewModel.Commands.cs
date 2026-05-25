@@ -32,7 +32,7 @@ public partial class MainViewModel
             "GeneralSettings" => "SettingsHub",
             "HotkeySettings" => "SettingsHub",
             "StartupSettings" => "SettingsHub",
-            "QuickLaunchSettings" => "SettingsHub",
+
             "ProcessInfo" => "SettingsHub",
             _ => contentKey
         };
@@ -40,6 +40,7 @@ public partial class MainViewModel
         var title = normalizedKey switch
         {
             "SettingsHub" => "設定",
+            "QuickLaunch" => "Quick Launch",
             _ => normalizedKey
         };
 

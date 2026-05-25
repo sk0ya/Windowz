@@ -11,6 +11,68 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="16,12,16,16">
+
+            <!-- 起動ボタン一覧 -->
+            <Border Visibility="{Binding HasLaunchItems, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Margin="0,0,0,12">
+                <ItemsControl ItemsSource="{Binding LaunchItems}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.Resources>
+
+                        <!-- 単独アプリボタン -->
+                        <DataTemplate DataType="{x:Type vm:QuickLaunchAppItem}">
+                            <ui:Button Margin="0,0,8,8" Padding="12,8"
+                                       Appearance="Secondary"
+                                       Command="{Binding DataContext.RunQuickLaunchAppCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,6,0"
+                                           VerticalAlignment="Center"
+                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                    <ui:SymbolIcon Symbol="WindowConsole20" Margin="0,0,6,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                   Visibility="{Binding Icon, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=invert}"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                </StackPanel>
+                            </ui:Button>
+                        </DataTemplate>
+
+                        <!-- タイルグループボタン -->
+                        <DataTemplate DataType="{x:Type vm:QuickLaunchTileGroupItem}">
+                            <ui:Button Margin="0,0,8,8" Padding="12,8"
+                                       Appearance="Secondary"
+                                       Command="{Binding DataContext.RunTileGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Grid24" Margin="0,0,6,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                </StackPanel>
+                            </ui:Button>
+                        </DataTemplate>
+
+                    </ItemsControl.Resources>
+                </ItemsControl>
+            </Border>
+
             <TextBlock Text="Quick Launch Apps" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
 

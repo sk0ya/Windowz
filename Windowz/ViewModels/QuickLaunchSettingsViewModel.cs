@@ -186,6 +186,7 @@ public partial class QuickLaunchSettingsViewModel : ObservableObject
 {
     // ファイル選択ダイアログで選択後、View 側でテキストボックスにフォーカスを当てるために使用
     public event Action? BrowseDone;
+    public event EventHandler<QuickLaunchTileGroupSetting>? TileGroupLaunchRequested;
 
     private readonly SettingsManager _settingsManager;
 
@@ -211,6 +212,7 @@ public partial class QuickLaunchSettingsViewModel : ObservableObject
     private string? _selectedSuggestion;
 
     public bool HasNoQuickLaunchApps => LaunchItems.Count == 0;
+    public bool HasLaunchItems => LaunchItems.Count > 0;
 
     private List<string> _allPathExecutables = new();
     private bool _suppressSuggestions;
@@ -325,6 +327,7 @@ public partial class QuickLaunchSettingsViewModel : ObservableObject
                 LaunchItems.Add(app);
 
         OnPropertyChanged(nameof(HasNoQuickLaunchApps));
+        OnPropertyChanged(nameof(HasLaunchItems));
     }
 
     public bool IsLaunchItem(object? item) => item != null && LaunchItems.Contains(item);
@@ -528,18 +531,21 @@ public partial class QuickLaunchSettingsViewModel : ObservableObject
 
         try
         {
-            var psi = new ProcessStartInfo
+            Process.Start(new ProcessStartInfo
             {
                 FileName = item.Path,
                 Arguments = item.Model.Arguments,
                 UseShellExecute = true
-            };
-            Process.Start(psi);
+            });
         }
-        catch
-        {
-            // Ignore launch errors
-        }
+        catch { }
+    }
+
+    [RelayCommand]
+    private void RunTileGroup(QuickLaunchTileGroupItem? group)
+    {
+        if (group == null) return;
+        TileGroupLaunchRequested?.Invoke(this, group.Model);
     }
 
     // ─── パスサジェスト ────────────────────────────────────────────────────────
