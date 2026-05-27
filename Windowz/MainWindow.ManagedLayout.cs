@@ -700,16 +700,21 @@ public partial class MainWindow
         if (windHwnd == IntPtr.Zero || !NativeMethods.IsWindow(windHwnd))
             return IntPtr.Zero;
 
-        IntPtr insertAfter = windHwnd;
+        var validHandles = tileHandles
+            .Where(handle =>
+                handle != IntPtr.Zero &&
+                handle != windHwnd &&
+                NativeMethods.IsWindow(handle))
+            .Distinct()
+            .ToList();
 
-        foreach (var handle in tileHandles)
+        IntPtr insertAfter = NativeMethods.HWND_TOP;
+        IntPtr topTileHwnd = IntPtr.Zero;
+        IntPtr bottomTileHwnd = IntPtr.Zero;
+
+        for (int i = validHandles.Count - 1; i >= 0; i--)
         {
-            if (handle == IntPtr.Zero ||
-                handle == windHwnd ||
-                !NativeMethods.IsWindow(handle))
-            {
-                continue;
-            }
+            var handle = validHandles[i];
 
             NativeMethods.SetWindowPos(
                 handle,
@@ -722,10 +727,28 @@ public partial class MainWindow
                 NativeMethods.SWP_NOSIZE |
                 NativeMethods.SWP_NOACTIVATE);
 
+            if (topTileHwnd == IntPtr.Zero)
+                topTileHwnd = handle;
+
             insertAfter = handle;
+            bottomTileHwnd = handle;
         }
 
-        return insertAfter;
+        if (bottomTileHwnd != IntPtr.Zero)
+        {
+            NativeMethods.SetWindowPos(
+                windHwnd,
+                bottomTileHwnd,
+                0,
+                0,
+                0,
+                0,
+                NativeMethods.SWP_NOMOVE |
+                NativeMethods.SWP_NOSIZE |
+                NativeMethods.SWP_NOACTIVATE);
+        }
+
+        return topTileHwnd;
     }
 
     private async Task InitWebTabForTileAsync(TabItem tab)
