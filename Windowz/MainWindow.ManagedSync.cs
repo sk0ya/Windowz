@@ -136,9 +136,18 @@ public partial class MainWindow
 
         bool isSameTab = matchingTab == _tabManager.ActiveTab;
 
+        // フォアグラウンドになったのが managed window 本体ではなく、同プロセスの
+        // ダイアログ・ポップアップかを判定する。ダイアログの場合は tab 切替も
+        // activate も行わない。
+        bool foregroundIsManagedWindow = FindExternallyManagedTabByHandle(hwnd) != null;
+
         if (!isSameTab)
         {
-            _tabManager.ActiveTab = matchingTab;
+            // ダイアログがフォアグラウンドになっても ActiveTab を切り替えない。
+            // そうしないと ViewModel_PropertyChanged → UpdateManagedWindowLayout(activate:true)
+            // でダイアログが managed window の裏に隠れてしまう。
+            if (foregroundIsManagedWindow)
+                _tabManager.ActiveTab = matchingTab;
         }
 
         if (WindowState == WindowState.Minimized)
@@ -146,6 +155,19 @@ public partial class MainWindow
 
         if (!isSameTab)
             return;
+
+        // フォアグラウンドになったのが managed window 本体ではなく、
+        // 同プロセスのダイアログ・ポップアップの場合は activate をスキップする。
+        // そうしないと SetWindowPos(HWND_TOP) でダイアログが managed window の裏に隠れ、
+        // ForceForegroundWindow でフォーカスも奪われてボタン操作ができなくなる。
+        if (!foregroundIsManagedWindow)
+        {
+            // _activeManagedWindowHandle を復元して次の位置更新で bringToFront=true
+            // にならないよう防ぐ（MainWindow_Deactivated が IntPtr.Zero にリセット済み）
+            if (_tabManager.TryGetExternallyManagedWindowHandle(matchingTab, out var mh) && mh != IntPtr.Zero)
+                _activeManagedWindowHandle = mh;
+            return;
+        }
 
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
         {
