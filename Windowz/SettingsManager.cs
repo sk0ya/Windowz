@@ -20,6 +20,8 @@ public sealed class SettingsManager
     public event Action<string>? TabHeaderPositionChanged;
     public event Action<bool>? AutoEmbedNewWindowsChanged;
     public event Action? AutoEmbedExclusionsChanged;
+    /// <summary>path, hide — スタートアップアプリの HideFromTaskbar が変更されたとき発火する。</summary>
+    public event Action<string, bool>? StartupAppHideFromTaskbarChanged;
 
     public SettingsManager()
         : this(null)
@@ -131,7 +133,8 @@ public sealed class SettingsManager
                     : a.Name.Trim(),
                 Path = a.Path.Trim(),
                 Arguments = a.Arguments?.Trim() ?? string.Empty,
-                Group = a.Group
+                Group = a.Group,
+                HideFromTaskbar = a.HideFromTaskbar
             })
             .ToList();
 
@@ -185,6 +188,12 @@ public sealed class SettingsManager
     public void SaveStartupApplication()
     {
         SaveSettings();
+    }
+
+    public void ApplyStartupAppHideFromTaskbar(string path, bool hide)
+    {
+        SaveSettings();
+        StartupAppHideFromTaskbarChanged?.Invoke(path, hide);
     }
 
     public void AddStartupGroup(string name, string color)

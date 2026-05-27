@@ -138,7 +138,8 @@ public class WindowManager
             OriginalRect = rect,
             WasVisible = NativeMethods.IsWindowVisible(handle),
             WasMinimized = NativeMethods.IsIconic(handle),
-            WasMaximized = NativeMethods.IsZoomed(handle)
+            WasMaximized = NativeMethods.IsZoomed(handle),
+            OriginalExStyle = NativeMethods.GetWindowLong(handle, NativeMethods.GWL_EXSTYLE)
         };
 
         // ドラッグ中の DWM クエリを避けるため、フレームインセットを先行キャッシュする
@@ -441,6 +442,11 @@ public class WindowManager
             NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE);
         }
 
+        // exStyle を元に戻す（HideFromTaskbar で変更した WS_EX_TOOLWINDOW / WS_EX_APPWINDOW を含む）
+        int currentExStyle = NativeMethods.GetWindowLong(handle, NativeMethods.GWL_EXSTYLE);
+        if (currentExStyle != state.OriginalExStyle)
+            NativeMethods.SetWindowLong(handle, NativeMethods.GWL_EXSTYLE, state.OriginalExStyle);
+
         if (state.OriginalRect.Width > 0 && state.OriginalRect.Height > 0)
         {
             bool restored = NativeMethods.SetWindowPos(
@@ -486,6 +492,41 @@ public class WindowManager
                 NativeMethods.RDW_UPDATENOW);
             NativeMethods.UpdateWindow(handle);
         }
+    }
+
+    /// <summary>
+    /// 管理ウィンドウのタスクバー表示を切り替える。
+    /// hide=true で WS_EX_TOOLWINDOW を付与し WS_EX_APPWINDOW を除去（タスクバーから非表示）。
+    /// hide=false で元の exStyle の WS_EX_APPWINDOW ビットを復元し WS_EX_TOOLWINDOW を除去。
+    /// </summary>
+    public void ApplyTaskbarVisibility(IntPtr handle, bool hide)
+    {
+        if (!NativeMethods.IsWindow(handle)) return;
+
+        int current = NativeMethods.GetWindowLong(handle, NativeMethods.GWL_EXSTYLE);
+        // GetWindowLong が失敗すると 0 を返す。GetLastWin32Error で判別する。
+        if (current == 0 && System.Runtime.InteropServices.Marshal.GetLastWin32Error() != 0) return;
+
+        int newStyle;
+        if (hide)
+        {
+            newStyle = (current | (int)NativeMethods.WS_EX_TOOLWINDOW) & ~(int)NativeMethods.WS_EX_APPWINDOW;
+        }
+        else
+        {
+            // 元の exStyle から WS_EX_APPWINDOW ビットを復元する
+            int originalAppWindow = _managedWindowStates.TryGetValue(handle, out var state)
+                ? state.OriginalExStyle & (int)NativeMethods.WS_EX_APPWINDOW
+                : (int)NativeMethods.WS_EX_APPWINDOW;
+            newStyle = (current & ~(int)NativeMethods.WS_EX_TOOLWINDOW) | originalAppWindow;
+        }
+
+        if (newStyle == current) return;
+
+        NativeMethods.SetWindowLong(handle, NativeMethods.GWL_EXSTYLE, newStyle);
+        NativeMethods.SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0,
+            NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE |
+            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED);
     }
 
     public void ForgetManagedWindow(IntPtr handle)
@@ -603,5 +644,6 @@ public class WindowManager
         public bool WasVisible { get; init; }
         public bool WasMinimized { get; init; }
         public bool WasMaximized { get; init; }
+        public int OriginalExStyle { get; init; }
     }
 }

@@ -66,6 +66,8 @@ public sealed class StartupApplicationSetting
     public string Name { get; set; } = string.Empty;
 
     public string? Group { get; set; }
+
+    public bool HideFromTaskbar { get; set; }
 }
 
 public sealed class StartupGroupSetting

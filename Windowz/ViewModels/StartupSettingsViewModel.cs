@@ -56,6 +56,20 @@ public partial class StartupAppItem : ObservableObject
         }
     }
 
+    public bool HideFromTaskbar
+    {
+        get => _app.HideFromTaskbar;
+        set
+        {
+            if (_app.HideFromTaskbar != value)
+            {
+                _app.HideFromTaskbar = value;
+                OnPropertyChanged();
+                _settingsManager.ApplyStartupAppHideFromTaskbar(_app.Path, value);
+            }
+        }
+    }
+
     [ObservableProperty]
     private bool _isSelected;
 }

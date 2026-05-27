@@ -159,6 +159,21 @@
                                             <ui:TextBox Text="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
                                                        PlaceholderText="arguments"
                                                        FontSize="12"/>
+                                            <CheckBox Content="タスクバーから非表示"
+                                                      IsChecked="{Binding HideFromTaskbar}"
+                                                      FontSize="11"
+                                                      Margin="0,3,0,0"
+                                                      Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                <CheckBox.Style>
+                                                    <Style TargetType="CheckBox">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsUrl}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </CheckBox.Style>
+                                            </CheckBox>
                                         </StackPanel>
 
                                         <ui:Button Grid.Column="2"
@@ -312,6 +327,21 @@
                                                                     <ui:TextBox Text="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
                                                                                PlaceholderText="arguments"
                                                                                FontSize="12"/>
+                                                                    <CheckBox Content="タスクバーから非表示"
+                                                                              IsChecked="{Binding HideFromTaskbar}"
+                                                                              FontSize="11"
+                                                                              Margin="0,3,0,0"
+                                                                              Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                                        <CheckBox.Style>
+                                                                            <Style TargetType="CheckBox">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsUrl}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </CheckBox.Style>
+                                                                    </CheckBox>
                                                                 </StackPanel>
 
                                                                 <StackPanel Grid.Column="2" Orientation="Horizontal">

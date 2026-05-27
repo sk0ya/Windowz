@@ -68,6 +68,7 @@ public partial class MainViewModel : ObservableObject
 
         _tabManager.ActiveTabChanged += OnActiveTabChanged;
         _hotkeyManager.HotkeyPressed += OnHotkeyPressed;
+        _settingsManager.StartupAppHideFromTaskbarChanged += OnStartupAppHideFromTaskbarChanged;
     }
 
     private void OnActiveTabChanged(object? sender, TabItem? tab)
@@ -98,6 +99,16 @@ public partial class MainViewModel : ObservableObject
             IsWebTabActive = false;
             ActiveWebTabId = null;
         }
+    }
+
+    private void OnStartupAppHideFromTaskbarChanged(string path, bool hide)
+    {
+        var tab = _tabManager.Tabs.FirstOrDefault(t =>
+            !t.IsContentTab && !t.IsWebTab && t.IsLaunchedAtStartup &&
+            string.Equals(t.Window?.ExecutablePath, path, StringComparison.OrdinalIgnoreCase));
+
+        if (tab?.Window?.Handle is IntPtr h && h != IntPtr.Zero)
+            _windowManager.ApplyTaskbarVisibility(h, hide);
     }
 
     private void OnHotkeyPressed(object? sender, HotkeyBinding binding)
