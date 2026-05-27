@@ -348,6 +348,15 @@ public class WindowManager
             return;
         }
 
+        // タスクバー非表示のツールウィンドウを最小化すると、Windows がデスクトップ下端に
+        // 小さな最小化ウィンドウを表示することがあるため、非アクティブ時は隠す。
+        if (IsHiddenFromTaskbar(handle))
+        {
+            if (NativeMethods.IsWindowVisible(handle))
+                ShowWindowNoAnimation(handle, NativeMethods.SW_HIDE);
+            return;
+        }
+
         // 非アクティブタブのウィンドウを最小化する。アニメーションなしで実行。
         if (!NativeMethods.IsIconic(handle))
             ShowWindowNoAnimation(handle, NativeMethods.SW_MINIMIZE);
@@ -379,6 +388,17 @@ public class WindowManager
         NativeMethods.ShowWindow(handle, nCmdShow);
         int zero = 0;
         NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DWMWA_TRANSITIONS_FORCEDISABLED, ref zero, sizeof(int));
+    }
+
+    private static bool IsHiddenFromTaskbar(IntPtr handle)
+    {
+        System.Runtime.InteropServices.Marshal.SetLastPInvokeError(0);
+        int exStyle = NativeMethods.GetWindowLong(handle, NativeMethods.GWL_EXSTYLE);
+        if (exStyle == 0 && System.Runtime.InteropServices.Marshal.GetLastWin32Error() != 0)
+            return false;
+
+        return (exStyle & (int)NativeMethods.WS_EX_TOOLWINDOW) != 0 &&
+               (exStyle & (int)NativeMethods.WS_EX_APPWINDOW) == 0;
     }
 
     private void ConvertVisibleBoundsToWindowBounds(
@@ -503,6 +523,7 @@ public class WindowManager
     {
         if (!NativeMethods.IsWindow(handle)) return;
 
+        System.Runtime.InteropServices.Marshal.SetLastPInvokeError(0);
         int current = NativeMethods.GetWindowLong(handle, NativeMethods.GWL_EXSTYLE);
         // GetWindowLong が失敗すると 0 を返す。GetLastWin32Error で判別する。
         if (current == 0 && System.Runtime.InteropServices.Marshal.GetLastWin32Error() != 0) return;

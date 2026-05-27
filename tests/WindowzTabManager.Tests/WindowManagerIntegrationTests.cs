@@ -50,6 +50,12 @@ internal static class WindowManagerIntegrationTests
     private static extern bool IsIconic(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]
@@ -117,6 +123,9 @@ internal static class WindowManagerIntegrationTests
     private const int  SW_SHOWNOACTIVATE = 4;
     private const int  SW_MINIMIZE      = 6;
     private const int  DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    private const int  GWL_EXSTYLE = -20;
+    private const int  WS_EX_TOOLWINDOW = 0x00000080;
+    private const int  WS_EX_APPWINDOW = 0x00040000;
     private const uint PM_REMOVE        = 1;
     private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
     private const uint WINEVENT_OUTOFCONTEXT   = 0x0000;
@@ -297,6 +306,27 @@ internal static class WindowManagerIntegrationTests
 
         mgr.MinimizeManagedWindow(win.Handle); // no-op のはず
         Assert(!IsIconic(win.Handle), "管理外 HWND に対する MinimizeManagedWindow はウィンドウを変更しないべき。");
+    }
+
+    internal static void MinimizeManagedWindow_HiddenFromTaskbar_HidesInsteadOfIconic()
+    {
+        using var scope = new TempSettingsScope();
+        var mgr = new WindowManager(scope.Manager);
+        using var win = new TestWindowScope();
+
+        mgr.TryManageWindow(win.Handle);
+        mgr.ApplyTaskbarVisibility(win.Handle, hide: true);
+
+        int exStyle = GetWindowLong(win.Handle, GWL_EXSTYLE);
+        Assert((exStyle & WS_EX_TOOLWINDOW) != 0 && (exStyle & WS_EX_APPWINDOW) == 0,
+            "前提: HideFromTaskbar 適用後は tool window になっているべき。");
+
+        mgr.MinimizeManagedWindow(win.Handle);
+
+        Assert(!IsWindowVisible(win.Handle),
+            "HideFromTaskbar 対象は最小化ではなく非表示にするべき。");
+        Assert(!IsIconic(win.Handle),
+            "HideFromTaskbar 対象を iconic 状態にするとデスクトップ下端に表示されるため避けるべき。");
     }
 
     internal static void MinimizeAllManagedWindowsExcept_OnlyMinimizesOthers()

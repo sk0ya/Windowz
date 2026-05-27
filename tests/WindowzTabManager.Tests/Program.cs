@@ -67,6 +67,7 @@ internal static class Program
         Run("ReleaseManagedWindow_NotManaged_DoesNotMoveWindow",  WindowManagerIntegrationTests.ReleaseManagedWindow_NotManaged_DoesNotMoveWindow);
         Run("MinimizeManagedWindow_MakesWindowIconic",            WindowManagerIntegrationTests.MinimizeManagedWindow_MakesWindowIconic);
         Run("MinimizeManagedWindow_NotManaged_DoesNotMinimize",   WindowManagerIntegrationTests.MinimizeManagedWindow_NotManaged_DoesNotMinimize);
+        Run("MinimizeManagedWindow_HiddenFromTaskbar_HidesInsteadOfIconic", WindowManagerIntegrationTests.MinimizeManagedWindow_HiddenFromTaskbar_HidesInsteadOfIconic);
         Run("MinimizeAllManagedWindowsExcept_OnlyMinimizesOthers",WindowManagerIntegrationTests.MinimizeAllManagedWindowsExcept_OnlyMinimizesOthers);
         Run("AddTab_WithRealWindow_RegistersHandleAndSetsActiveTab", WindowManagerIntegrationTests.AddTab_WithRealWindow_RegistersHandleAndSetsActiveTab);
         Run("AddTab_SameHwndTwice_ReturnsSameTab",                WindowManagerIntegrationTests.AddTab_SameHwndTwice_ReturnsSameTab);

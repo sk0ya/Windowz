@@ -44,7 +44,10 @@ public partial class MainViewModel
                     {
                         tab.IsLaunchedAtStartup = true;
                         if (config.HideFromTaskbar && tab.Window?.Handle is IntPtr h && h != IntPtr.Zero)
+                        {
                             _windowManager.ApplyTaskbarVisibility(h, hide: true);
+                            _windowManager.MinimizeManagedWindow(h);
+                        }
                         StatusMessage = $"Added: {tab.Title}";
                         configTabPairs.Add((config, tab));
                     }
