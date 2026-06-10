@@ -139,7 +139,13 @@ public partial class MainWindow
         // フォアグラウンドになったのが managed window 本体ではなく、同プロセスの
         // ダイアログ・ポップアップかを判定する。ダイアログの場合は tab 切替も
         // activate も行わない。
-        bool foregroundIsManagedWindow = FindExternallyManagedTabByHandle(hwnd) != null;
+        // タスクバー復帰や Alt+Tab では追跡している managed HWND ではなくその
+        // root/owner 側が前景化されることがあり、これはダイアログではなく本体の
+        // アクティブ化として扱う（ダイアログは owner から所有される側なので
+        // IsRootOwnerOfManagedTabWindow には一致しない）。
+        bool foregroundIsManagedWindow =
+            FindExternallyManagedTabByHandle(hwnd) != null ||
+            IsRootOwnerOfManagedTabWindow(hwnd, matchingTab);
 
         if (!isSameTab)
         {
@@ -198,6 +204,25 @@ public partial class MainWindow
         }
 
         return null;
+    }
+
+    // 前景化した hwnd が、タブの managed window の root / root-owner ウィンドウ
+    // 本体かを判定する。owner 側の前景化は managed window のアクティブ化と等価。
+    // ダイアログ・ポップアップは所有される側 (owned window) であり root/owner
+    // 自体とは一致しないため、ここでは false を返す。
+    private bool IsRootOwnerOfManagedTabWindow(IntPtr hwnd, Models.TabItem tab)
+    {
+        if (hwnd == IntPtr.Zero)
+            return false;
+
+        if (!_tabManager.TryGetExternallyManagedWindowHandle(tab, out var managedHandle) ||
+            managedHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        return hwnd == NormalizeRootWindowHandle(managedHandle) ||
+               hwnd == NormalizeRootOwnerWindowHandle(managedHandle);
     }
 
     private Models.TabItem? FindExternallyManagedTabForForegroundWindow(IntPtr hwnd)
