@@ -127,6 +127,10 @@ public partial class MainWindow
         if (matchingTab == null)
             return;
 
+        ActivationLog.Write("ForegroundChg",
+            $"fg={ActivationLog.Describe(hwnd)} matchedTab={matchingTab.DisplayTitle} " +
+            $"isActiveTab={(matchingTab == _tabManager.ActiveTab)} windState={WindowState}");
+
         // ピン留め中: ピン留めタブのウィンドウがフォアグラウンドになっても
         // ActiveTab を変更しない。アクティブスロット(右/左半面)のアプリが
         // 最小化された際に OS がピン留めウィンドウへフォーカスを移すことがあり、
@@ -175,24 +179,12 @@ public partial class MainWindow
             return;
         }
 
-        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
-        {
-            if (_suppressManagedWindowPromotion ||
-                _isDragging ||
-                WindowState == WindowState.Minimized ||
-                _viewModel.IsWindowPickerOpen ||
-                _viewModel.IsCommandPaletteOpen ||
-                _viewModel.IsContentTabActive ||
-                _viewModel.IsWebTabActive)
-            {
-                return;
-            }
-
-            // Same-tab foreground events include taskbar restores. Re-assert
-            // activation after Windowz itself is restored because that restore
-            // can otherwise steal foreground from the managed app.
-            UpdateManagedWindowLayout(activate: true);
-        });
+        // Same-tab foreground events include taskbar restores. Re-assert
+        // activation after Windowz itself is restored because that restore
+        // can otherwise steal foreground from the managed app.
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            () => PromoteManagedWindowToForeground("ForegroundChanged"));
     }
 
     private Models.TabItem? FindExternallyManagedTabByHandle(IntPtr hwnd)

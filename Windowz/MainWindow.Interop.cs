@@ -7,8 +7,21 @@ namespace WindowzTabManager;
 
 public partial class MainWindow
 {
+    // フォアグラウンド昇格の遅延リトライ用。OS が最小化復元を完了した後に Windowz を
+    // 再フォアグラウンド化して managed アプリの前面化を奪う競合を吸収する。
+    private const int MaxManagedPromotionRetries = 2;
+    private const int ManagedPromotionRetryDelayMs = 90;
+    private DispatcherTimer? _managedPromotionRetryTimer;
+    private int _managedPromotionRetryCount;
+    private string _managedPromotionRetryReason = string.Empty;
+
     private void MainWindow_Activated(object? sender, EventArgs e)
     {
+        ActivationLog.Write("Activated",
+            $"state={WindowState} active={IsActive} justRestored={_wasJustRestoredFromMinimize} " +
+            $"contentTab={_viewModel.IsContentTabActive} webTab={_viewModel.IsWebTabActive} " +
+            $"lastNonTaskbarFg={ActivationLog.Describe(_lastNonTaskbarForegroundWindow)}");
+
         if (_viewModel.IsCommandPaletteOpen)
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
@@ -24,36 +37,123 @@ public partial class MainWindow
         if (TryMinimizeWindowzFromTaskbarActivation())
             return;
 
-        bool shouldPromoteManagedWindow =
-            !_viewModel.IsContentTabActive &&
-            !_viewModel.IsWebTabActive;
-
-        if (shouldPromoteManagedWindow)
+        if (_viewModel.IsContentTabActive || _viewModel.IsWebTabActive)
         {
-            // Run after the activation input has settled so Windowz controls do
-            // not lose their first click while still restoring the hosted app.
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
-            {
-                if (IsActive &&
-                    WindowState != WindowState.Minimized &&
-                    !_suppressManagedWindowPromotion &&
-                    !_viewModel.IsWindowPickerOpen &&
-                    !_viewModel.IsCommandPaletteOpen &&
-                    !_viewModel.IsContentTabActive &&
-                    !_viewModel.IsWebTabActive)
-                {
-                    UpdateManagedWindowLayout(activate: true);
-                }
-            });
+            UpdateManagedWindowLayout(activate: false);
             return;
         }
 
-        UpdateManagedWindowLayout(activate: false);
+        // Run after the activation input has settled so Windowz controls do
+        // not lose their first click while still restoring the hosted app.
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            // Windowz が依然アクティブな場合のみ昇格する。ユーザーが既に別アプリへ
+            // 切り替えていたら（IsActive=false）昇格しない。
+            if (IsActive)
+                PromoteManagedWindowToForeground("Activated");
+        });
     }
 
     private void MainWindow_Deactivated(object? sender, EventArgs e)
     {
         _activeManagedWindowHandle = IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// 自動フォアグラウンド昇格を行ってよい状態かを判定する。
+    /// MainWindow_Activated と OnForegroundWindowChanged の双方で共有する。
+    /// </summary>
+    /// <remarks>
+    /// IsActive は意図的に含めない。managed アプリのタスクバーボタンから復帰した場合、
+    /// フォアグラウンドは managed アプリ側にあり Windowz は非アクティブだが、その状態でも
+    /// managed アプリを前面化する必要がある。また昇格自体が Windowz を非アクティブ化するため、
+    /// 後続のリトライで IsActive を要求すると一度も再昇格できなくなる。
+    /// </remarks>
+    private bool CanPromoteManagedWindowToForeground()
+    {
+        return WindowState != WindowState.Minimized &&
+               !_suppressManagedWindowPromotion &&
+               !_isDragging &&
+               !_viewModel.IsWindowPickerOpen &&
+               !_viewModel.IsCommandPaletteOpen &&
+               !_viewModel.IsContentTabActive &&
+               !_viewModel.IsWebTabActive;
+    }
+
+    /// <summary>
+    /// 選択中タブの managed ウィンドウを前面化する。昇格後にフォアグラウンドが実際に
+    /// managed ウィンドウへ移ったかを検証し、奪われていれば短い遅延で再昇格を試みる。
+    /// </summary>
+    private void PromoteManagedWindowToForeground(string reason)
+    {
+        if (!CanPromoteManagedWindowToForeground())
+        {
+            ActivationLog.Write("Promote", $"skip ({reason}): guard blocked");
+            return;
+        }
+
+        ActivationLog.Write("Promote",
+            $"begin ({reason}) tab={_viewModel.SelectedTab?.DisplayTitle} " +
+            $"activeManaged={ActivationLog.Describe(_activeManagedWindowHandle)}");
+
+        UpdateManagedWindowLayout(activate: true);
+        VerifyManagedWindowForegroundOrRetry(reason);
+    }
+
+    private void VerifyManagedWindowForegroundOrRetry(string reason)
+    {
+        var managed = GetCurrentActiveManagedWindowHandle();
+        if (managed == IntPtr.Zero)
+        {
+            ResetManagedPromotionRetry();
+            return;
+        }
+
+        var foreground = NativeMethods.GetForegroundWindow();
+        bool managedIsForeground = IsInSameWindowGroup(foreground, managed);
+
+        ActivationLog.Write("Promote",
+            $"verify ({reason}) fg={ActivationLog.Describe(foreground)} " +
+            $"managed={ActivationLog.Describe(managed)} ok={managedIsForeground} retry={_managedPromotionRetryCount}");
+
+        if (managedIsForeground || _managedPromotionRetryCount >= MaxManagedPromotionRetries)
+        {
+            ResetManagedPromotionRetry();
+            return;
+        }
+
+        _managedPromotionRetryCount++;
+        _managedPromotionRetryReason = reason;
+
+        _managedPromotionRetryTimer ??= new DispatcherTimer(DispatcherPriority.Normal, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(ManagedPromotionRetryDelayMs)
+        };
+        _managedPromotionRetryTimer.Tick -= ManagedPromotionRetryTimer_Tick;
+        _managedPromotionRetryTimer.Tick += ManagedPromotionRetryTimer_Tick;
+        _managedPromotionRetryTimer.Start();
+    }
+
+    private void ManagedPromotionRetryTimer_Tick(object? sender, EventArgs e)
+    {
+        _managedPromotionRetryTimer?.Stop();
+
+        if (!CanPromoteManagedWindowToForeground())
+        {
+            ActivationLog.Write("Promote", $"retry#{_managedPromotionRetryCount} aborted: guard blocked");
+            ResetManagedPromotionRetry();
+            return;
+        }
+
+        ActivationLog.Write("Promote", $"retry#{_managedPromotionRetryCount} ({_managedPromotionRetryReason})");
+        UpdateManagedWindowLayout(activate: true);
+        VerifyManagedWindowForegroundOrRetry(_managedPromotionRetryReason);
+    }
+
+    private void ResetManagedPromotionRetry()
+    {
+        _managedPromotionRetryCount = 0;
+        _managedPromotionRetryTimer?.Stop();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -143,6 +243,7 @@ public partial class MainWindow
         if (_wasJustRestoredFromMinimize)
         {
             _wasJustRestoredFromMinimize = false;
+            ActivationLog.Write("TaskbarMin", "skip: just restored from minimize");
             return false;
         }
 
@@ -155,11 +256,20 @@ public partial class MainWindow
         // _lastForegroundWindow を直接使うと常に Shell_TrayWnd となり判定が失敗する。
         // この変数は WM_ACTIVATE / OUTOFCONTEXT の到達順に依存しない。
         if (!IsInSameWindowGroup(_lastNonTaskbarForegroundWindow, currentManagedHandle))
+        {
+            ActivationLog.Write("TaskbarMin",
+                $"skip: lastNonTaskbarFg={ActivationLog.Describe(_lastNonTaskbarForegroundWindow)} " +
+                $"not in group of managed={ActivationLog.Describe(currentManagedHandle)}");
             return false;
+        }
 
         if (!IsTaskbarPointerActivation())
+        {
+            ActivationLog.Write("TaskbarMin", "skip: pointer not on taskbar");
             return false;
+        }
 
+        ActivationLog.Write("TaskbarMin", "MATCH -> minimizing Windowz (taskbar re-click on active managed app)");
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
         {
             if (WindowState != WindowState.Minimized)

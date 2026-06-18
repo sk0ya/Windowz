@@ -151,6 +151,11 @@ public partial class MainWindow
 
     private void UpdateSingleManagedWindowLayout(IntPtr targetHandle, bool activate)
     {
+        ActivationLog.Write("SingleLayout",
+            $"target={ActivationLog.Describe(targetHandle)} activate={activate} " +
+            $"activeManaged={ActivationLog.Describe(_activeManagedWindowHandle)} " +
+            $"bringToFront={activate || targetHandle != _activeManagedWindowHandle}");
+
         IntPtr previousHandle = IntPtr.Zero;
         bool deferPreviousWindowMinimize =
             activate &&

@@ -247,7 +247,13 @@ public class WindowManager
 
         if (bringToFront)
         {
+            var foregroundBefore = NativeMethods.GetForegroundWindow();
             NativeMethods.ForceForegroundWindow(handle);
+            ActivationLog.Write("WinMgr",
+                $"ActivateManagedWindow {ActivationLog.Describe(handle)} bringToFront " +
+                $"alreadyVisible={alreadyVisible} positioned={positioned} " +
+                $"fgBefore={ActivationLog.Describe(foregroundBefore)} " +
+                $"fgAfter={ActivationLog.Describe(NativeMethods.GetForegroundWindow())}");
         }
 
         // z-order を直す必要があるのは managed window を前面に出すときだけ。

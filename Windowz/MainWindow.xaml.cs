@@ -352,6 +352,7 @@ public partial class MainWindow : Window
         _isCleanupCompleted = true;
         _isWaitingForCloseTargets = false;
 
+        ResetManagedPromotionRetry();
         RemoveExternalDragHooks();
         RemoveForegroundActivationHook();
         RemoveManagedWindowSyncHooks();
@@ -465,6 +466,11 @@ public partial class MainWindow : Window
             // foreground regardless of whether the handle has changed since minimize.
             _activeManagedWindowHandle = IntPtr.Zero;
             _wasJustRestoredFromMinimize = true;
+            ActivationLog.Write("StateChanged", $"restored from minimize -> state={WindowState}");
+        }
+        else
+        {
+            ActivationLog.Write("StateChanged", $"state={WindowState} wasMinimized={_wasMinimized}");
         }
 
         _wasMinimized = WindowState == WindowState.Minimized;
