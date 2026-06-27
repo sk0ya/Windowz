@@ -51,8 +51,6 @@ public partial class MainWindow
 
     private IntPtr _foregroundEventHook;
     private ManagedWinEventDelegate? _foregroundEventProc;
-    private IntPtr _lastForegroundWindow;
-    private IntPtr _lastForegroundBeforeWindowzActivation;
     // タスクバー系ウィンドウと Windowz 自プロセスを除いた最後のフォアグラウンドウィンドウ。
     // Shell_TrayWnd がタスクバークリック時に一瞬フォアグラウンドを取得する問題を回避するために使用。
     private IntPtr _lastNonTaskbarForegroundWindow;
@@ -99,19 +97,14 @@ public partial class MainWindow
         if (hwnd == IntPtr.Zero)
             return;
 
-        if (hwnd == _mainWindowHandle)
-        {
-            _lastForegroundBeforeWindowzActivation = _lastForegroundWindow;
-        }
-        else if (!IsTaskbarClassName(NativeMethods.GetWindowClassName(hwnd)))
+        if (hwnd != _mainWindowHandle &&
+            !IsTaskbarClassName(NativeMethods.GetWindowClassName(hwnd)))
         {
             // Windowz 自プロセスのウィンドウ（コマンドパレット等）も除外する
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid != 0 && pid != (uint)Environment.ProcessId)
                 _lastNonTaskbarForegroundWindow = hwnd;
         }
-
-        _lastForegroundWindow = hwnd;
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnForegroundWindowChanged(hwnd));
     }
 
@@ -120,8 +113,22 @@ public partial class MainWindow
         if (_suppressManagedWindowPromotion || _isDragging)
             return;
 
-        if (hwnd == _mainWindowHandle)
+        // OUTOFCONTEXT の WinEvent は Dispatcher に届くまでに古くなることがある。
+        // 古いイベントで最小化中の Windowz を復元すると、タスクバー操作が反転する。
+        var currentForeground = NativeMethods.GetForegroundWindow();
+        if (currentForeground != hwnd &&
+            !IsInSameWindowGroup(currentForeground, hwnd))
+        {
+            ActivationLog.Write("ForegroundChg",
+                $"skip stale event={ActivationLog.Describe(hwnd)} current={ActivationLog.Describe(currentForeground)}");
             return;
+        }
+
+        if (hwnd == _mainWindowHandle)
+        {
+            HandleWindowzForegroundEvent();
+            return;
+        }
 
         var matchingTab = FindExternallyManagedTabForForegroundWindow(hwnd);
         if (matchingTab == null)
@@ -160,8 +167,7 @@ public partial class MainWindow
                 _tabManager.ActiveTab = matchingTab;
         }
 
-        if (WindowState == WindowState.Minimized)
-            WindowState = WindowState.Normal;
+        RestoreWindowzForManagedForeground();
 
         if (!isSameTab)
             return;
@@ -182,9 +188,7 @@ public partial class MainWindow
         // Same-tab foreground events include taskbar restores. Re-assert
         // activation after Windowz itself is restored because that restore
         // can otherwise steal foreground from the managed app.
-        Dispatcher.BeginInvoke(
-            DispatcherPriority.ApplicationIdle,
-            () => PromoteManagedWindowToForeground("ForegroundChanged"));
+        RequestManagedWindowPromotion("ForegroundChanged", DispatcherPriority.ApplicationIdle);
     }
 
     private Models.TabItem? FindExternallyManagedTabByHandle(IntPtr hwnd)

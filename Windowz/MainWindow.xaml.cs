@@ -50,12 +50,6 @@ public partial class MainWindow : Window
     private bool _isTabBarCollapsed;
     private string? _managedSurfaceRegionKey;
     private bool _wasMinimized;
-    // 最小化から復元した直後のアクティベーションでは、タスクバークリック最小化判定を
-    // スキップする。マネージドアプリのタスクバーボタンをクリックして復元した際に
-    // OnForegroundWindowChanged が Windowz も復元し MainWindow_Activated が発火するが、
-    // その時点でカーソルはタスクバー上・_lastNonTaskbarForegroundWindow はマネージドアプリと
-    // なるため TryMinimizeWindowzFromTaskbarActivation が誤検知して即再最小化してしまう。
-    private bool _wasJustRestoredFromMinimize;
     private readonly Dictionary<Guid, WebTabControl> _webTabControls = new();
     private Guid? _currentWebTabId;
     private bool _isTileModeActive;
@@ -166,6 +160,7 @@ public partial class MainWindow : Window
         source?.AddHook(WndProc);
 
         SetupForegroundActivationHook();
+        SetupTaskbarActivationHook();
 
         // Remove the OS accent-color border drawn by DWM on Windows 11.
         uint noBorder = NativeMethods.DWMWA_COLOR_NONE;
@@ -352,7 +347,8 @@ public partial class MainWindow : Window
         _isCleanupCompleted = true;
         _isWaitingForCloseTargets = false;
 
-        ResetManagedPromotionRetry();
+        CancelManagedWindowPromotion();
+        RemoveTaskbarActivationHook();
         RemoveExternalDragHooks();
         RemoveForegroundActivationHook();
         RemoveManagedWindowSyncHooks();
@@ -443,6 +439,9 @@ public partial class MainWindow : Window
 
     private void Window_StateChanged(object sender, EventArgs e)
     {
+        if (WindowState == WindowState.Minimized)
+            CancelManagedWindowPromotion();
+
         if (WindowState == WindowState.Minimized && _viewModel.IsCommandPaletteOpen)
         {
             _viewModel.CloseCommandPaletteCommand.Execute(null);
@@ -465,7 +464,9 @@ public partial class MainWindow : Window
             // Allow UpdateManagedWindowLayout to bring the managed window to the
             // foreground regardless of whether the handle has changed since minimize.
             _activeManagedWindowHandle = IntPtr.Zero;
-            _wasJustRestoredFromMinimize = true;
+            if (!_managedForegroundRestoreInProgress)
+                _wasJustRestoredFromMinimize = true;
+            _managedForegroundRestoreInProgress = false;
             ActivationLog.Write("StateChanged", $"restored from minimize -> state={WindowState}");
         }
         else

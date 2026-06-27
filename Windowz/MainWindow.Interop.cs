@@ -7,163 +7,35 @@ namespace WindowzTabManager;
 
 public partial class MainWindow
 {
-    // フォアグラウンド昇格の遅延リトライ用。OS が最小化復元を完了した後に Windowz を
-    // 再フォアグラウンド化して managed アプリの前面化を奪う競合を吸収する。
-    private const int MaxManagedPromotionRetries = 2;
-    private const int ManagedPromotionRetryDelayMs = 90;
-    private DispatcherTimer? _managedPromotionRetryTimer;
-    private int _managedPromotionRetryCount;
-    private string _managedPromotionRetryReason = string.Empty;
-
-    private void MainWindow_Activated(object? sender, EventArgs e)
-    {
-        ActivationLog.Write("Activated",
-            $"state={WindowState} active={IsActive} justRestored={_wasJustRestoredFromMinimize} " +
-            $"contentTab={_viewModel.IsContentTabActive} webTab={_viewModel.IsWebTabActive} " +
-            $"lastNonTaskbarFg={ActivationLog.Describe(_lastNonTaskbarForegroundWindow)}");
-
-        if (_viewModel.IsCommandPaletteOpen)
-        {
-            Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
-            {
-                _commandPaletteWindow?.RequestSearchBoxFocus();
-            });
-            return;
-        }
-
-        if (_viewModel.IsWindowPickerOpen)
-            return;
-
-        if (TryMinimizeWindowzFromTaskbarActivation())
-            return;
-
-        if (_viewModel.IsContentTabActive || _viewModel.IsWebTabActive)
-        {
-            UpdateManagedWindowLayout(activate: false);
-            return;
-        }
-
-        // Run after the activation input has settled so Windowz controls do
-        // not lose their first click while still restoring the hosted app.
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
-        {
-            // Windowz が依然アクティブな場合のみ昇格する。ユーザーが既に別アプリへ
-            // 切り替えていたら（IsActive=false）昇格しない。
-            if (IsActive)
-                PromoteManagedWindowToForeground("Activated");
-        });
-    }
-
-    private void MainWindow_Deactivated(object? sender, EventArgs e)
-    {
-        _activeManagedWindowHandle = IntPtr.Zero;
-    }
-
-    /// <summary>
-    /// 自動フォアグラウンド昇格を行ってよい状態かを判定する。
-    /// MainWindow_Activated と OnForegroundWindowChanged の双方で共有する。
-    /// </summary>
-    /// <remarks>
-    /// IsActive は意図的に含めない。managed アプリのタスクバーボタンから復帰した場合、
-    /// フォアグラウンドは managed アプリ側にあり Windowz は非アクティブだが、その状態でも
-    /// managed アプリを前面化する必要がある。また昇格自体が Windowz を非アクティブ化するため、
-    /// 後続のリトライで IsActive を要求すると一度も再昇格できなくなる。
-    /// </remarks>
-    private bool CanPromoteManagedWindowToForeground()
-    {
-        return WindowState != WindowState.Minimized &&
-               !_suppressManagedWindowPromotion &&
-               !_isDragging &&
-               !_viewModel.IsWindowPickerOpen &&
-               !_viewModel.IsCommandPaletteOpen &&
-               !_viewModel.IsContentTabActive &&
-               !_viewModel.IsWebTabActive;
-    }
-
-    /// <summary>
-    /// 選択中タブの managed ウィンドウを前面化する。昇格後にフォアグラウンドが実際に
-    /// managed ウィンドウへ移ったかを検証し、奪われていれば短い遅延で再昇格を試みる。
-    /// </summary>
-    private void PromoteManagedWindowToForeground(string reason)
-    {
-        if (!CanPromoteManagedWindowToForeground())
-        {
-            ActivationLog.Write("Promote", $"skip ({reason}): guard blocked");
-            return;
-        }
-
-        ActivationLog.Write("Promote",
-            $"begin ({reason}) tab={_viewModel.SelectedTab?.DisplayTitle} " +
-            $"activeManaged={ActivationLog.Describe(_activeManagedWindowHandle)}");
-
-        UpdateManagedWindowLayout(activate: true);
-        VerifyManagedWindowForegroundOrRetry(reason);
-    }
-
-    private void VerifyManagedWindowForegroundOrRetry(string reason)
-    {
-        var managed = GetCurrentActiveManagedWindowHandle();
-        if (managed == IntPtr.Zero)
-        {
-            ResetManagedPromotionRetry();
-            return;
-        }
-
-        var foreground = NativeMethods.GetForegroundWindow();
-        bool managedIsForeground = IsInSameWindowGroup(foreground, managed);
-
-        ActivationLog.Write("Promote",
-            $"verify ({reason}) fg={ActivationLog.Describe(foreground)} " +
-            $"managed={ActivationLog.Describe(managed)} ok={managedIsForeground} retry={_managedPromotionRetryCount}");
-
-        if (managedIsForeground || _managedPromotionRetryCount >= MaxManagedPromotionRetries)
-        {
-            ResetManagedPromotionRetry();
-            return;
-        }
-
-        _managedPromotionRetryCount++;
-        _managedPromotionRetryReason = reason;
-
-        _managedPromotionRetryTimer ??= new DispatcherTimer(DispatcherPriority.Normal, Dispatcher)
-        {
-            Interval = TimeSpan.FromMilliseconds(ManagedPromotionRetryDelayMs)
-        };
-        _managedPromotionRetryTimer.Tick -= ManagedPromotionRetryTimer_Tick;
-        _managedPromotionRetryTimer.Tick += ManagedPromotionRetryTimer_Tick;
-        _managedPromotionRetryTimer.Start();
-    }
-
-    private void ManagedPromotionRetryTimer_Tick(object? sender, EventArgs e)
-    {
-        _managedPromotionRetryTimer?.Stop();
-
-        if (!CanPromoteManagedWindowToForeground())
-        {
-            ActivationLog.Write("Promote", $"retry#{_managedPromotionRetryCount} aborted: guard blocked");
-            ResetManagedPromotionRetry();
-            return;
-        }
-
-        ActivationLog.Write("Promote", $"retry#{_managedPromotionRetryCount} ({_managedPromotionRetryReason})");
-        UpdateManagedWindowLayout(activate: true);
-        VerifyManagedWindowForegroundOrRetry(_managedPromotionRetryReason);
-    }
-
-    private void ResetManagedPromotionRetry()
-    {
-        _managedPromotionRetryCount = 0;
-        _managedPromotionRetryTimer?.Stop();
-    }
-
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        const int WM_ACTIVATE = 0x0006;
+        const int WM_WINDOWPOSCHANGED = 0x0047;
         const int WM_MOUSEACTIVATE = 0x0021;
         const int WM_NCHITTEST = 0x0084;
         const int WM_NCPAINT   = 0x0085;
         const int WM_GETMINMAXINFO = 0x0024;
         const int HTCLIENT = 1;
         const int MA_ACTIVATE = 1;
+
+        // 外部の managed HWND と Windowz の間を移動した場合、WPF Activated や
+        // EVENT_SYSTEM_FOREGROUND が通知されないことがある。WM_ACTIVATE は HWND 自身に
+        // 届くため、タスクバー前景化の最終フォールバックとして使用する。
+        if (msg == WM_ACTIVATE && (wParam.ToInt64() & 0xFFFF) != 0)
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Normal,
+                HandleWindowzForegroundEvent);
+        }
+
+        // タスクバークリックで Z-order だけが変わる場合は WM_ACTIVATE と WinEvent の
+        // どちらも来ないため、位置変更完了後にも同じ条件付きフォールバックを確認する。
+        if (msg == WM_WINDOWPOSCHANGED)
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Background,
+                HandleWindowzForegroundEvent);
+        }
 
         // When the window is not active and the user clicks anywhere on it,
         // return MA_ACTIVATE so that Windows both activates Windowz AND passes
@@ -221,131 +93,6 @@ public partial class MainWindow
         return rootOwner != IntPtr.Zero
             ? rootOwner
             : NormalizeRootWindowHandle(hwnd);
-    }
-
-    private bool TryMinimizeWindowzFromTaskbarActivation()
-    {
-        if (WindowState == WindowState.Minimized ||
-            _suppressManagedWindowPromotion ||
-            _viewModel.IsCommandPaletteOpen ||
-            _viewModel.IsWindowPickerOpen ||
-            _viewModel.IsContentTabActive ||
-            _viewModel.IsWebTabActive)
-        {
-            return false;
-        }
-
-        // 最小化から復元した直後のアクティベーションでは最小化判定をスキップする。
-        // マネージドアプリのタスクバーボタンをクリックした際、OnForegroundWindowChanged が
-        // Windowz を復元してから MainWindow_Activated が発火するが、そのタイミングでは
-        // カーソルがタスクバー上かつ _lastNonTaskbarForegroundWindow がマネージドアプリを
-        // 指しているため、誤ってフォアグラウンド最小化と判定されてしまう。
-        if (_wasJustRestoredFromMinimize)
-        {
-            _wasJustRestoredFromMinimize = false;
-            ActivationLog.Write("TaskbarMin", "skip: just restored from minimize");
-            return false;
-        }
-
-        var currentManagedHandle = GetCurrentActiveManagedWindowHandle();
-        if (currentManagedHandle == IntPtr.Zero)
-            return false;
-
-        // タスクバー系ウィンドウと Windowz 自プロセスを除外した最後のフォアグラウンドで比較する。
-        // Shell_TrayWnd がタスクバークリック時に一瞬フォアグラウンドを取得するため、
-        // _lastForegroundWindow を直接使うと常に Shell_TrayWnd となり判定が失敗する。
-        // この変数は WM_ACTIVATE / OUTOFCONTEXT の到達順に依存しない。
-        if (!IsInSameWindowGroup(_lastNonTaskbarForegroundWindow, currentManagedHandle))
-        {
-            ActivationLog.Write("TaskbarMin",
-                $"skip: lastNonTaskbarFg={ActivationLog.Describe(_lastNonTaskbarForegroundWindow)} " +
-                $"not in group of managed={ActivationLog.Describe(currentManagedHandle)}");
-            return false;
-        }
-
-        if (!IsTaskbarPointerActivation())
-        {
-            ActivationLog.Write("TaskbarMin", "skip: pointer not on taskbar");
-            return false;
-        }
-
-        ActivationLog.Write("TaskbarMin", "MATCH -> minimizing Windowz (taskbar re-click on active managed app)");
-        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
-        {
-            if (WindowState != WindowState.Minimized)
-                WindowState = WindowState.Minimized;
-        });
-        return true;
-    }
-
-    private static bool IsInSameWindowGroup(IntPtr hwnd, IntPtr managed)
-    {
-        if (hwnd == IntPtr.Zero || managed == IntPtr.Zero)
-            return false;
-        if (hwnd == managed)
-            return true;
-
-        var root1 = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
-        var root2 = NativeMethods.GetAncestor(managed, NativeMethods.GA_ROOT);
-        if (root1 == IntPtr.Zero) root1 = hwnd;
-        if (root2 == IntPtr.Zero) root2 = managed;
-        if (root1 == root2)
-            return true;
-
-        // ルートが異なっても同一プロセスのウィンドウ（ポップアップ等）は同グループとみなす
-        NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid1);
-        NativeMethods.GetWindowThreadProcessId(managed, out uint pid2);
-        return pid1 != 0 && pid2 != 0 && pid1 == pid2;
-    }
-
-    private IntPtr GetCurrentActiveManagedWindowHandle()
-    {
-        var selectedTab = _viewModel.SelectedTab;
-        if (selectedTab == null ||
-            !_viewModel.TryGetExternallyManagedWindowHandle(selectedTab, out var handle))
-        {
-            return IntPtr.Zero;
-        }
-
-        return handle;
-    }
-
-    private bool IsTaskbarPointerActivation()
-    {
-        if (!NativeMethods.GetCursorPos(out var cursorPos))
-            return false;
-
-        if (IsScreenPointInsideWindow(cursorPos.X, cursorPos.Y))
-            return false;
-
-        return IsTaskbarWindowAtScreenPoint(cursorPos.X, cursorPos.Y);
-    }
-
-    private bool IsTaskbarWindowAtScreenPoint(int screenX, int screenY)
-    {
-        var pointedWindow = NativeMethods.WindowFromPoint(new NativeMethods.POINT
-        {
-            X = screenX,
-            Y = screenY
-        });
-        if (pointedWindow == IntPtr.Zero)
-            return false;
-
-        var root = NativeMethods.GetAncestor(pointedWindow, NativeMethods.GA_ROOT);
-        if (root == IntPtr.Zero)
-            root = pointedWindow;
-
-        return IsTaskbarClassName(NativeMethods.GetWindowClassName(pointedWindow)) ||
-               IsTaskbarClassName(NativeMethods.GetWindowClassName(root));
-    }
-
-    private static bool IsTaskbarClassName(string className)
-    {
-        return className is "Shell_TrayWnd" or
-               "Shell_SecondaryTrayWnd" or
-               "MSTaskListWClass" or
-               "MSTaskSwWClass" or
-               "TaskListThumbnailWnd";
     }
 
     private bool IsPointInsideElement(FrameworkElement element, Point windowPoint)
