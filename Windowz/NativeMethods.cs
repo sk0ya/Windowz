@@ -283,23 +283,37 @@ internal static class NativeMethods
     /// currently owns the foreground lock. Uses AttachThreadInput to temporarily
     /// share input state with the current foreground thread.
     /// </summary>
-    public static void ForceForegroundWindow(IntPtr hWnd)
+    public static bool ForceForegroundWindow(IntPtr hWnd)
     {
         var foregroundWindow = GetForegroundWindow();
-        if (foregroundWindow == hWnd) return;
+        if (foregroundWindow == hWnd) return true;
 
         var foregroundThread = GetWindowThreadProcessId(foregroundWindow, out _);
+        var targetThread = GetWindowThreadProcessId(hWnd, out _);
         var currentThread = GetCurrentThreadId();
+        bool attachedForeground = false;
+        bool attachedTarget = false;
 
-        if (foregroundThread != currentThread)
+        try
         {
-            AttachThreadInput(foregroundThread, currentThread, true);
-            SetForegroundWindow(hWnd);
-            AttachThreadInput(foregroundThread, currentThread, false);
+            if (foregroundThread != 0 && foregroundThread != currentThread)
+                attachedForeground = AttachThreadInput(currentThread, foregroundThread, true);
+
+            if (targetThread != 0 && targetThread != currentThread && targetThread != foregroundThread)
+                attachedTarget = AttachThreadInput(currentThread, targetThread, true);
+
+            bool requested = SetForegroundWindow(hWnd);
+            if (requested && targetThread != 0)
+                SetFocus(hWnd);
+
+            return requested && GetForegroundWindow() == hWnd;
         }
-        else
+        finally
         {
-            SetForegroundWindow(hWnd);
+            if (attachedTarget)
+                AttachThreadInput(currentThread, targetThread, false);
+            if (attachedForeground)
+                AttachThreadInput(currentThread, foregroundThread, false);
         }
     }
 

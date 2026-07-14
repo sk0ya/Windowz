@@ -245,13 +245,15 @@ public class WindowManager
             NativeMethods.MoveWindow(handle, windowX, windowY, windowWidth, windowHeight, true);
         }
 
+        bool foregroundActivated = false;
         if (bringToFront)
         {
             var foregroundBefore = NativeMethods.GetForegroundWindow();
-            NativeMethods.ForceForegroundWindow(handle);
+            foregroundActivated = NativeMethods.ForceForegroundWindow(handle);
             ActivationLog.Write("WinMgr",
                 $"ActivateManagedWindow {ActivationLog.Describe(handle)} bringToFront " +
                 $"alreadyVisible={alreadyVisible} positioned={positioned} " +
+                $"foregroundActivated={foregroundActivated} " +
                 $"fgBefore={ActivationLog.Describe(foregroundBefore)} " +
                 $"fgAfter={ActivationLog.Describe(NativeMethods.GetForegroundWindow())}");
         }
@@ -259,7 +261,8 @@ public class WindowManager
         // z-order を直す必要があるのは managed window を前面に出すときだけ。
         // bringToFront=false の位置更新パス (ドラッグ・LocationChanged 等) では
         // SetWindowPos がアクセシビリティイベントを再発火させてループになるため呼ばない。
-        if (bringToFront && windWindowHandle != default && NativeMethods.IsWindow(windWindowHandle) &&
+        if (bringToFront && foregroundActivated &&
+            windWindowHandle != default && NativeMethods.IsWindow(windWindowHandle) &&
             NativeMethods.GetWindow(handle, NativeMethods.GW_HWNDNEXT) != windWindowHandle)
         {
             PlaceWindowzBehindManagedWindow(handle, windWindowHandle);

@@ -10,8 +10,10 @@ namespace WindowzTabManager;
 /// </summary>
 public partial class MainWindow
 {
-    private const int MaxManagedPromotionRetries = 2;
-    private const int ManagedPromotionRetryDelayMs = 90;
+    // 長時間未使用だったプロセスは、ウィンドウスレッドが操作可能になるまで
+    // 数百 ms 以上かかることがある。ユーザー操作から始まった同じ generation の間だけ、
+    // 段階的に間隔を延ばして再試行する。
+    private static readonly int[] ManagedPromotionRetryDelaysMs = [100, 250, 500, 1000];
 
     private DispatcherOperation? _pendingManagedPromotion;
     private DispatcherTimer? _managedPromotionRetryTimer;
@@ -193,7 +195,7 @@ public partial class MainWindow
         if (generation != _managedPromotionGeneration ||
             !CanPromoteManagedWindowToForeground() ||
             _managedPromotionTarget != GetCurrentActiveManagedWindowHandle() ||
-            !CanContinueManagedWindowPromotion())
+            (_managedPromotionRetryCount == 0 && !CanContinueManagedWindowPromotion()))
         {
             CancelManagedWindowPromotion();
             return;
@@ -229,17 +231,20 @@ public partial class MainWindow
             $"fg={ActivationLog.Describe(foreground)} target={ActivationLog.Describe(_managedPromotionTarget)} " +
             $"ok={managedIsForeground} retry={_managedPromotionRetryCount}");
 
-        if (managedIsForeground || _managedPromotionRetryCount >= MaxManagedPromotionRetries)
+        if (managedIsForeground ||
+            _managedPromotionRetryCount >= ManagedPromotionRetryDelaysMs.Length)
         {
             CancelManagedWindowPromotion();
             return;
         }
 
+        int retryDelayMs = ManagedPromotionRetryDelaysMs[_managedPromotionRetryCount];
         _managedPromotionRetryCount++;
         _managedPromotionRetryTimer ??= new DispatcherTimer(DispatcherPriority.Normal, Dispatcher)
         {
-            Interval = TimeSpan.FromMilliseconds(ManagedPromotionRetryDelayMs)
+            Interval = TimeSpan.FromMilliseconds(retryDelayMs)
         };
+        _managedPromotionRetryTimer.Interval = TimeSpan.FromMilliseconds(retryDelayMs);
         _managedPromotionRetryTimer.Tick -= ManagedPromotionRetryTimer_Tick;
         _managedPromotionRetryTimer.Tick += ManagedPromotionRetryTimer_Tick;
         _managedPromotionRetryTimer.Start();
