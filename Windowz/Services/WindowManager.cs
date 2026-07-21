@@ -295,18 +295,37 @@ public class WindowManager
         }
     }
 
+    // フォアグラウンド権限のない (=フォアグラウンドスレッドに未アタッチの) プロセスからの
+    // SetWindowPos による Z-order 挿入は、ForceForegroundWindow 直後でもサイレントに無視されうる。
+    // ForceForegroundWindow と同じ AttachThreadInput のトリックで一時的に対象スレッドへ
+    // 入力を共有し、その間に Windowz を managed window の直後へ挿入する。
     private static void PlaceWindowzBehindManagedWindow(IntPtr handle, IntPtr windWindowHandle)
     {
-        NativeMethods.SetWindowPos(
-            windWindowHandle,
-            handle,
-            0,
-            0,
-            0,
-            0,
-            NativeMethods.SWP_NOMOVE |
-            NativeMethods.SWP_NOSIZE |
-            NativeMethods.SWP_NOACTIVATE);
+        var targetThread = NativeMethods.GetWindowThreadProcessId(handle, out _);
+        var currentThread = NativeMethods.GetCurrentThreadId();
+        bool attachedTarget = false;
+
+        try
+        {
+            if (targetThread != 0 && targetThread != currentThread)
+                attachedTarget = NativeMethods.AttachThreadInput(currentThread, targetThread, true);
+
+            NativeMethods.SetWindowPos(
+                windWindowHandle,
+                handle,
+                0,
+                0,
+                0,
+                0,
+                NativeMethods.SWP_NOMOVE |
+                NativeMethods.SWP_NOSIZE |
+                NativeMethods.SWP_NOACTIVATE);
+        }
+        finally
+        {
+            if (attachedTarget)
+                NativeMethods.AttachThreadInput(currentThread, targetThread, false);
+        }
     }
 
     /// <summary>
