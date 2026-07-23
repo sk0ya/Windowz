@@ -27,7 +27,7 @@ public class WindowManager
     public void RefreshWindowList()
     {
         AvailableWindows.Clear();
-        var windows = EnumerateWindows();
+        var windows = EnumerateWindows(resolveIconAndElevation: true);
         foreach (var window in windows)
         {
             if (!_managedWindowStates.ContainsKey(window.Handle))
@@ -37,7 +37,13 @@ public class WindowManager
         }
     }
 
-    public List<WindowInfo> EnumerateWindows()
+    /// <summary>
+    /// resolveIconAndElevation: false にすると各ウィンドウのアイコン抽出と昇格チェックを省略し、
+    /// 起動時候補検出や既知ウィンドウの棚卸しなど表示を伴わない走査を大幅に高速化する。
+    /// デフォルト値は用意しない: 呼び出し側に毎回明示させ、表示用途の呼び出しが
+    /// うっかり軽量パスに倒れてアイコン/昇格情報を欠落させる事故を防ぐ。
+    /// </summary>
+    public List<WindowInfo> EnumerateWindows(bool resolveIconAndElevation)
     {
         var windows = new List<WindowInfo>();
         var currentProcessId = Environment.ProcessId;
@@ -53,7 +59,7 @@ public class WindowManager
             if (!IsValidWindow(hWnd, currentProcessId))
                 return true;
 
-            var windowInfo = WindowInfo.FromHandle(hWnd);
+            var windowInfo = WindowInfo.FromHandle(hWnd, resolveIconAndElevation);
             if (windowInfo != null)
             {
                 windows.Add(windowInfo);

@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using WindowzTabManager.Models;
 
 namespace WindowzTabManager.Services;
 
@@ -55,7 +56,9 @@ public partial class TabManager
 
         CleanupExpiredAutoEmbedSuppressions();
 
-        var windows = _windowManager.EnumerateWindows();
+        // ほとんどのティックでは既知ウィンドウのみのため、まず軽量スキャンで判定し、
+        // 本当に新規のウィンドウだけをフル解決する（アイコン抽出等を毎回全件で行わない）。
+        var windows = _windowManager.EnumerateWindows(resolveIconAndElevation: false);
         var visibleHandles = new HashSet<IntPtr>(windows.Select(w => w.Handle));
 
         foreach (var tab in Tabs)
@@ -83,7 +86,8 @@ public partial class TabManager
             if (_settingsManager.IsAutoEmbedExcluded(window.ExecutablePath))
                 continue;
 
-            AddTab(window, activate: true);
+            var fullWindow = WindowInfo.WithResolvedDisplayInfo(window);
+            AddTab(fullWindow, activate: true);
         }
     }
 
@@ -93,7 +97,7 @@ public partial class TabManager
             return;
 
         _knownWindowHandles.Clear();
-        foreach (var window in _windowManager.EnumerateWindows())
+        foreach (var window in _windowManager.EnumerateWindows(resolveIconAndElevation: false))
             _knownWindowHandles.Add(window.Handle);
         foreach (var tab in Tabs)
         {

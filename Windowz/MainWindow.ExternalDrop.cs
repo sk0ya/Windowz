@@ -260,7 +260,7 @@ public partial class MainWindow
 
     private void TryEmbedExternalWindow(IntPtr hwnd)
     {
-        var windowInfo = WindowInfo.FromHandle(hwnd);
+        var windowInfo = WindowInfo.FromHandle(hwnd, true);
         if (windowInfo == null) return;
 
         if (windowInfo.IsElevated)

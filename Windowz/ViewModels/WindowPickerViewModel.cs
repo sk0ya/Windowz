@@ -117,7 +117,7 @@ public partial class WindowPickerViewModel : ObservableObject
     private void RefreshWindowList()
     {
         var currentSelection = SelectedWindow?.Handle;
-        var windows = _windowManager.EnumerateWindows();
+        var windows = _windowManager.EnumerateWindows(resolveIconAndElevation: true);
 
         // 追加されたウィンドウを追加
         foreach (var window in windows)
@@ -458,7 +458,7 @@ public partial class WindowPickerViewModel : ObservableObject
 
             // Snapshot existing window handles before launch
             var existingHandles = new HashSet<IntPtr>(
-                _windowManager.EnumerateWindows().Select(w => w.Handle));
+                _windowManager.EnumerateWindows(resolveIconAndElevation: true).Select(w => w.Handle));
 
             var startInfo = BuildStartInfo(app, type);
 
@@ -478,7 +478,7 @@ public partial class WindowPickerViewModel : ObservableObject
             for (int i = 0; i < 100; i++)
             {
                 await Task.Delay(100, ct);
-                var current = _windowManager.EnumerateWindows();
+                var current = _windowManager.EnumerateWindows(resolveIconAndElevation: true);
                 if (expectsExplorerWindow)
                 {
                     var candidates = current
@@ -519,7 +519,7 @@ public partial class WindowPickerViewModel : ObservableObject
 
                 RefreshWindowList();
                 var windowInfo = _availableWindows.FirstOrDefault(w => w.Handle == newWindow.Handle)
-                    ?? WindowInfo.FromHandle(newWindow.Handle);
+                    ?? WindowInfo.FromHandle(newWindow.Handle, true);
                 if (windowInfo != null)
                 {
                     WindowSelected?.Invoke(this, windowInfo);
@@ -547,7 +547,7 @@ public partial class WindowPickerViewModel : ObservableObject
         bool expectsExplorerWindow,
         HashSet<IntPtr> existingHandles)
     {
-        var windows = _windowManager.EnumerateWindows();
+        var windows = _windowManager.EnumerateWindows(resolveIconAndElevation: true);
         var newCandidates = windows.Where(w => !existingHandles.Contains(w.Handle)).ToList();
         string? targetProcessName = TryGetProcessName(launchPath);
 
@@ -636,7 +636,7 @@ public partial class WindowPickerViewModel : ObservableObject
 
             // 起動前のウィンドウハンドルをスナップショット
             var existingHandles = new HashSet<IntPtr>(
-                _windowManager.EnumerateWindows().Select(w => w.Handle));
+                _windowManager.EnumerateWindows(resolveIconAndElevation: true).Select(w => w.Handle));
 
             // 全アプリ起動（バッチスクリプトは除外）
             var launchedApps = new List<QuickLaunchAppSetting>();
@@ -663,7 +663,7 @@ public partial class WindowPickerViewModel : ObservableObject
             {
                 await Task.Delay(100, ct);
 
-                var newWindows = _windowManager.EnumerateWindows()
+                var newWindows = _windowManager.EnumerateWindows(resolveIconAndElevation: true)
                     .Where(w => !existingHandles.Contains(w.Handle))
                     .ToList();
 

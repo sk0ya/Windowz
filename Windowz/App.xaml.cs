@@ -153,7 +153,7 @@ public partial class App : Application
         // Snapshot existing handles before startup launches, to detect new windows.
         var windowManager = _serviceProvider.GetRequiredService<WindowManager>();
         var preExistingWindows = new HashSet<IntPtr>(
-            windowManager.EnumerateWindows().Select(w => w.Handle));
+            windowManager.EnumerateWindows(resolveIconAndElevation: false).Select(w => w.Handle));
 
         var (processConfigs, urlApps) = settingsManager.LaunchStartupApplications();
 

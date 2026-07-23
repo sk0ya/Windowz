@@ -1,8 +1,6 @@
 using System.Diagnostics;
-using System.Windows;
-using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using WindowzTabManager.Converters;
 
 namespace WindowzTabManager.Models;
 
@@ -17,7 +15,15 @@ public class WindowInfo
     public bool IsExplorer { get; set; }
     public bool IsElevated { get; set; }
 
-    public static WindowInfo? FromHandle(IntPtr handle)
+    /// <summary>
+    /// resolveIconAndElevation: false にすると、アイコン抽出（ディスクI/O + GDI変換）と
+    /// 昇格権限チェック（プロセストークンのオープン）をスキップする。
+    /// 起動時の候補ウィンドウ検出のように大量のウィンドウを繰り返し走査する場面で使用し、
+    /// マッチが確定した後は WithResolvedDisplayInfo で1件だけフル解決すればよい。
+    /// デフォルト値は用意しない: 呼び出し側に毎回どちらが必要か明示させることで、
+    /// 表示用途の呼び出しが誤って軽量パスの結果（アイコン無し）を受け取る事故を防ぐ。
+    /// </summary>
+    public static WindowInfo? FromHandle(IntPtr handle, bool resolveIconAndElevation)
     {
         if (handle == IntPtr.Zero)
             return null;
@@ -43,7 +49,8 @@ public class WindowInfo
                 if (!string.IsNullOrWhiteSpace(fileName))
                 {
                     executablePath = fileName;
-                    icon = GetIconFromFile(fileName);
+                    if (resolveIconAndElevation)
+                        icon = PathToIconConverter.GetIconForPath(fileName);
                 }
             }
             catch
@@ -60,7 +67,7 @@ public class WindowInfo
         bool isExplorer = string.Equals(processName, "explorer", StringComparison.OrdinalIgnoreCase)
                           && string.Equals(className, "CabinetWClass", StringComparison.Ordinal);
 
-        bool isElevated = !App.IsRunningAsAdmin() && NativeMethods.IsProcessElevated(handle);
+        bool isElevated = resolveIconAndElevation && !App.IsRunningAsAdmin() && NativeMethods.IsProcessElevated(handle);
 
         return new WindowInfo
         {
@@ -75,38 +82,35 @@ public class WindowInfo
         };
     }
 
-    private static ImageSource? GetIconFromFile(string filePath)
+    /// <summary>
+    /// 軽量スキャン（resolveIconAndElevation: false）で得た WindowInfo から、
+    /// アイコンと昇格フラグだけを追加解決する。
+    /// アイコンは ExecutablePath ベースのキャッシュ (PathToIconConverter) から取るため、
+    /// 対象ウィンドウが解決までの間に閉じてしまっても取得できる（ハンドルの再走査が不要）。
+    /// タイトル/PID/実行パス等は既に lite の時点で分かっているため再取得しない。
+    /// </summary>
+    public static WindowInfo WithResolvedDisplayInfo(WindowInfo lite)
     {
-        try
-        {
-            using var icon = System.Drawing.Icon.ExtractAssociatedIcon(filePath);
-            if (icon == null)
-                return null;
+        ImageSource? icon = !string.IsNullOrWhiteSpace(lite.ExecutablePath)
+            ? PathToIconConverter.GetIconForPath(lite.ExecutablePath)
+            : null;
 
-            using var bitmap = icon.ToBitmap();
-            IntPtr hBitmap = bitmap.GetHbitmap();
+        bool isElevated = lite.Handle != IntPtr.Zero
+            && !App.IsRunningAsAdmin()
+            && NativeMethods.IsProcessElevated(lite.Handle);
 
-            try
-            {
-                return Imaging.CreateBitmapSourceFromHBitmap(
-                    hBitmap,
-                    IntPtr.Zero,
-                    Int32Rect.Empty,
-                    BitmapSizeOptions.FromEmptyOptions());
-            }
-            finally
-            {
-                DeleteObject(hBitmap);
-            }
-        }
-        catch
+        return new WindowInfo
         {
-            return null;
-        }
+            Handle = lite.Handle,
+            Title = lite.Title,
+            ProcessName = lite.ProcessName,
+            ProcessId = lite.ProcessId,
+            Icon = icon,
+            ExecutablePath = lite.ExecutablePath,
+            IsExplorer = lite.IsExplorer,
+            IsElevated = isElevated
+        };
     }
-
-    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
-    private static extern bool DeleteObject(IntPtr hObject);
 
     public override string ToString() => $"{Title} ({ProcessName})";
 }

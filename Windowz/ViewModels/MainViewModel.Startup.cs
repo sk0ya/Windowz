@@ -24,11 +24,11 @@ public partial class MainViewModel
             // 残りはポーリングループで柔軟に対応する）
             await Task.Delay(200);
 
-            // 全プロセスのウィンドウを並列検出（順番に待つより大幅に速い）
-            var windowTasks = processConfigs
-                .Select(pair => FindStartupWindowAsync(pair.Process, pair.Config, preExistingWindows))
-                .ToList();
-            var windowInfos = await Task.WhenAll(windowTasks);
+            // 全プロセスのウィンドウを検出。以前は起動アプリごとに独立したポーリング
+            // ループを並列実行しており、ティックごとに EnumerateWindows を N 回重複して
+            // 呼んでいた（デスクトップ全体の走査を N 倍に増幅していた）。
+            // 1ティック1回の共有スキャンで全アプリ分をまとめて判定する形に変更。
+            var windowInfos = await FindStartupWindowsAsync(processConfigs, preExistingWindows);
 
             // 検出結果を元の順番でUIスレッドに反映
             for (int i = 0; i < processConfigs.Count; i++)
@@ -203,71 +203,112 @@ public partial class MainViewModel
         return fileName.Equals("explorer.exe", StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task<WindowInfo?> FindStartupWindowAsync(
-        Process process,
-        StartupApplication config,
+    /// <summary>
+    /// 複数の起動アプリのウィンドウをまとめて検出する。
+    /// 以前はアプリごとに独立したポーリングループが並列に EnumerateWindows を呼んでおり、
+    /// N個同時起動時にはデスクトップ全体の走査が毎ティック N 回重複していた。
+    /// ここでは1ティックにつき共有スキャンを1回だけ行い、未検出の全アプリをまとめて判定する。
+    /// </summary>
+    private async Task<WindowInfo?[]> FindStartupWindowsAsync(
+        List<(Process Process, StartupApplication Config)> processConfigs,
         HashSet<IntPtr>? preExistingWindows)
     {
-        string? targetProcessName = TryGetProcessName(config.Path);
-        IntPtr processMainWindowHandle = IntPtr.Zero;
-        int launchedProcessId = 0;
-        try { launchedProcessId = process.Id; } catch { }
+        int count = processConfigs.Count;
+        var results = new WindowInfo?[count];
+        var pending = new HashSet<int>(Enumerable.Range(0, count));
+
+        var targetProcessNames = processConfigs
+            .Select(pair => TryGetProcessName(pair.Config.Path))
+            .ToArray();
+        var launchedProcessIds = new int[count];
+        var processMainWindowHandles = new IntPtr[count];
+        for (int i = 0; i < count; i++)
+        {
+            try { launchedProcessIds[i] = processConfigs[i].Process.Id; } catch { }
+        }
 
         // 最大 50回 × 100ms = 5秒待機
-        for (int i = 0; i < 50; i++)
+        for (int i = 0; i < 50 && pending.Count > 0; i++)
         {
-            try
+            foreach (var idx in pending)
             {
-                if (!process.HasExited)
+                var process = processConfigs[idx].Process;
+                try
                 {
-                    process.Refresh();
-                    if (process.MainWindowHandle != IntPtr.Zero)
+                    if (!process.HasExited)
                     {
-                        processMainWindowHandle = process.MainWindowHandle;
+                        process.Refresh();
+                        if (process.MainWindowHandle != IntPtr.Zero)
+                        {
+                            processMainWindowHandles[idx] = process.MainWindowHandle;
+                        }
                     }
                 }
-            }
-            catch
-            {
-                // Ignore process query failures and fallback to window enumeration.
+                catch
+                {
+                    // Ignore process query failures and fallback to window enumeration.
+                }
             }
 
             // RefreshWindowList() は AvailableWindows ObservableCollection を毎回
             // クリア・再構築するためUI更新コストが高い。
             // 起動検出には EnumerateWindows() を直接呼び出してコストを削減する。
-            var windows = _windowManager.EnumerateWindows();
-            var candidate = FindStartupCandidate(
-                windows,
-                config.Path,
-                targetProcessName,
-                preExistingWindows,
-                processMainWindowHandle,
-                launchedProcessId,
-                preferNewWindow: true);
-            if (candidate != null)
+            // さらに、この時点ではマッチング用のタイトル/PID/実行パスだけが必要で
+            // アイコン抽出や昇格チェックは不要なため resolveIconAndElevation: false で
+            // 画面上の全ウィンドウ分の重い処理（ディスクI/O・GDI変換・トークン照会）を省く。
+            var windows = _windowManager.EnumerateWindows(resolveIconAndElevation: false);
+
+            foreach (var idx in pending.ToList())
             {
+                var config = processConfigs[idx].Config;
+                var candidate = FindStartupCandidate(
+                    windows,
+                    config.Path,
+                    targetProcessNames[idx],
+                    preExistingWindows,
+                    processMainWindowHandles[idx],
+                    launchedProcessIds[idx],
+                    preferNewWindow: true);
+                if (candidate == null)
+                    continue;
+
                 preExistingWindows?.Add(candidate.Handle);
-                return candidate;
+                // マッチが確定したウィンドウ1件だけアイコン/昇格情報を追加解決する。
+                // ExecutablePath ベースのキャッシュから引くため、対象ウィンドウが
+                // この直後に閉じてもアイコン取得に失敗しない。
+                results[idx] = WindowInfo.WithResolvedDisplayInfo(candidate);
+                pending.Remove(idx);
             }
+
+            if (pending.Count == 0)
+                break;
 
             await Task.Delay(100);
         }
 
-        var finalWindows = _windowManager.EnumerateWindows();
-        var fallback = FindStartupCandidate(
-            finalWindows,
-            config.Path,
-            targetProcessName,
-            preExistingWindows,
-            processMainWindowHandle,
-            launchedProcessId,
-            preferNewWindow: false);
-        if (fallback != null)
+        if (pending.Count > 0)
         {
-            preExistingWindows?.Add(fallback.Handle);
+            var finalWindows = _windowManager.EnumerateWindows(resolveIconAndElevation: false);
+            foreach (var idx in pending)
+            {
+                var config = processConfigs[idx].Config;
+                var fallback = FindStartupCandidate(
+                    finalWindows,
+                    config.Path,
+                    targetProcessNames[idx],
+                    preExistingWindows,
+                    processMainWindowHandles[idx],
+                    launchedProcessIds[idx],
+                    preferNewWindow: false);
+                if (fallback == null)
+                    continue;
+
+                preExistingWindows?.Add(fallback.Handle);
+                results[idx] = WindowInfo.WithResolvedDisplayInfo(fallback);
+            }
         }
 
-        return fallback;
+        return results;
     }
 
     private static WindowInfo? FindStartupCandidate(
