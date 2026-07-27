@@ -77,6 +77,14 @@ internal static class Program
         Run("CoVisible_PinnedTab_IsCoVisibleWithActiveTab", ForegroundActivationPolicyTests.CoVisible_PinnedTab_IsCoVisibleWithActiveTab);
         Run("CoVisible_SingleWindowMode_OtherTabIsNotCoVisible", ForegroundActivationPolicyTests.CoVisible_SingleWindowMode_OtherTabIsNotCoVisible);
 
+        // ── 画面座標ヒットテスト (表示スケール非依存) ──
+        Run("HitTest_BottomRightRegion_IsInsideAtEveryScale", WindowHitTestTests.HitTest_BottomRightRegion_IsInsideAtEveryScale);
+        Run("HitTest_CenterAndTopLeft_AreInside", WindowHitTestTests.HitTest_CenterAndTopLeft_AreInside);
+        Run("HitTest_RightAndBottomEdges_AreExclusive", WindowHitTestTests.HitTest_RightAndBottomEdges_AreExclusive);
+        Run("HitTest_OutsidePoints_AreOutside", WindowHitTestTests.HitTest_OutsidePoints_AreOutside);
+        Run("HitTest_EmptyOrInvertedRect_IsAlwaysOutside", WindowHitTestTests.HitTest_EmptyOrInvertedRect_IsAlwaysOutside);
+        Run("HitTest_RealWindowRect_MatchesWindowBounds", WindowHitTestTests.HitTest_RealWindowRect_MatchesWindowBounds);
+
         // ── 実 Win32 ウィンドウを使ったインテグレーションテスト ──
         Run("TryManageWindow_ValidHwnd_ReturnsTrue",              WindowManagerIntegrationTests.TryManageWindow_ValidHwnd_ReturnsTrue);
         Run("TryManageWindow_ZeroHandle_ReturnsFalse",            WindowManagerIntegrationTests.TryManageWindow_ZeroHandle_ReturnsFalse);

@@ -109,19 +109,23 @@ public partial class MainWindow
 
     private bool IsScreenPointInsideWindow(int screenX, int screenY)
     {
-        if (!IsLoaded || ActualWidth <= 0 || ActualHeight <= 0)
+        if (!IsLoaded || _mainWindowHandle == IntPtr.Zero)
             return false;
 
-        try
-        {
-            var topLeft = PointToScreen(new Point(0, 0));
-            return screenX >= topLeft.X && screenX < topLeft.X + ActualWidth &&
-                   screenY >= topLeft.Y && screenY < topLeft.Y + ActualHeight;
-        }
-        catch
-        {
+        // 物理ピクセルの実ウィンドウ矩形で判定する。呼び出し元は GetCursorPos 由来の
+        // 物理座標を渡すため、DIP を経由せずそのまま突き合わせられる。
+        // PointToScreen (物理) に ActualWidth (DIP) を足すと、表示スケール 100% 以外で
+        // 判定矩形が 1/スケールに縮み、ウィンドウ右側・下側がウィンドウ外と誤判定される。
+        if (!NativeMethods.GetWindowRect(_mainWindowHandle, out var rect))
             return false;
-        }
+
+        return WindowHitTest.IsScreenPointInsideRect(
+            rect.Left,
+            rect.Top,
+            rect.Right,
+            rect.Bottom,
+            screenX,
+            screenY);
     }
 
     private bool IsScreenPointInsideWindowControlButton(int screenX, int screenY)
