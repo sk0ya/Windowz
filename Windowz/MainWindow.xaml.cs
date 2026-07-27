@@ -464,9 +464,9 @@ public partial class MainWindow : Window
             // Allow UpdateManagedWindowLayout to bring the managed window to the
             // foreground regardless of whether the handle has changed since minimize.
             _activeManagedWindowHandle = IntPtr.Zero;
-            if (!_managedForegroundRestoreInProgress)
-                _wasJustRestoredFromMinimize = true;
-            _managedForegroundRestoreInProgress = false;
+            // 復元直後の Activated を「タスクバー再クリックによる最小化」と誤判定しないよう
+            // 復元時刻を記録する (RestoreWindowzForManagedForeground 経由なら既に記録済み)。
+            _restoredFromMinimizeTick = Environment.TickCount64;
             ActivationLog.Write("StateChanged", $"restored from minimize -> state={WindowState}");
         }
         else

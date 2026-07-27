@@ -105,23 +105,49 @@ public partial class MainWindow
             if (pid != 0 && pid != (uint)Environment.ProcessId)
                 _lastNonTaskbarForegroundWindow = hwnd;
         }
-        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnForegroundWindowChanged(hwnd));
+
+        long eventTick = Environment.TickCount64;
+        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnForegroundWindowChanged(hwnd, eventTick));
     }
 
     private void OnForegroundWindowChanged(IntPtr hwnd)
     {
+        OnForegroundWindowChanged(hwnd, Environment.TickCount64);
+    }
+
+    private void OnForegroundWindowChanged(IntPtr hwnd, long eventTick)
+    {
         if (_suppressManagedWindowPromotion || _isDragging)
             return;
 
+        var matchingTab = FindExternallyManagedTabForForegroundWindow(hwnd);
+
         // OUTOFCONTEXT の WinEvent は Dispatcher に届くまでに古くなることがある。
         // 古いイベントで最小化中の Windowz を復元すると、タスクバー操作が反転する。
+        // ただし managed タブのウィンドウについては、Windowz 自身の昇格処理が
+        // 前景を奪い返しただけの場合があり、そこで破棄すると「非表示タブのアプリを
+        // タスクバーからクリックしても切り替わらない」不具合になる。
         var currentForeground = NativeMethods.GetForegroundWindow();
-        if (currentForeground != hwnd &&
-            !IsInSameWindowGroup(currentForeground, hwnd))
+        bool foregroundMatchesEvent =
+            currentForeground == hwnd || IsInSameWindowGroup(currentForeground, hwnd);
+
+        if (!ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+                foregroundMatchesEvent,
+                matchingTab != null,
+                currentForeground == _mainWindowHandle,
+                IsInSameWindowGroup(currentForeground, GetCurrentActiveManagedWindowHandle()),
+                Environment.TickCount64 - eventTick))
         {
             ActivationLog.Write("ForegroundChg",
                 $"skip stale event={ActivationLog.Describe(hwnd)} current={ActivationLog.Describe(currentForeground)}");
             return;
+        }
+
+        if (!foregroundMatchesEvent)
+        {
+            ActivationLog.Write("ForegroundChg",
+                $"revive event={ActivationLog.Describe(hwnd)} current={ActivationLog.Describe(currentForeground)} " +
+                $"ageMs={Environment.TickCount64 - eventTick}");
         }
 
         if (hwnd == _mainWindowHandle)
@@ -130,7 +156,6 @@ public partial class MainWindow
             return;
         }
 
-        var matchingTab = FindExternallyManagedTabForForegroundWindow(hwnd);
         if (matchingTab == null)
             return;
 

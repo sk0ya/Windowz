@@ -204,6 +204,23 @@ public partial class TabManager
             ClearPinnedHalfInternal();
     }
 
+    /// <summary>
+    /// 指定タブがアクティブタブと同時に画面に表示されるかを返す。
+    /// タイル表示の同一グループメンバーとピン留め側のタブが該当する。
+    /// <para>
+    /// これらのウィンドウ間でフォアグラウンドが移動しても「別のアプリが選ばれた」
+    /// わけではないため、タブ切り替えや昇格中止の判定から除外するのに使う。
+    /// </para>
+    /// </summary>
+    public bool IsCoVisibleWithActiveTab(TabItem tab)
+    {
+        if (PinnedHalf?.PinnedTab == tab)
+            return true;
+
+        var activeTile = ActiveTab?.TileLayout;
+        return activeTile != null && tab.TileLayout == activeTile;
+    }
+
     private void ClearPinnedHalfInternal()
     {
         if (PinnedHalf == null)

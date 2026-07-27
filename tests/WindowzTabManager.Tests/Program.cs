@@ -56,6 +56,27 @@ internal static class Program
         Run("PinnedHalf_ActiveTabDiffersFromPinnedTab_ConditionForFractionInverseCalc", ActivationTests.PinnedHalf_ActiveTabDiffersFromPinnedTab_ConditionForFractionInverseCalc);
         Run("PinnedHalf_RightSide_FractionsAreCorrect", ActivationTests.PinnedHalf_RightSide_FractionsAreCorrect);
 
+        // ── タスクバー操作・フォアグラウンド昇格の判定ロジック ──
+        Run("ForegroundEvent_ManagedTabStolenBackByActiveManagedWindow_IsProcessed", ForegroundActivationPolicyTests.ForegroundEvent_ManagedTabStolenBackByActiveManagedWindow_IsProcessed);
+        Run("ForegroundEvent_ManagedTabStolenBackByWindowz_IsProcessed", ForegroundActivationPolicyTests.ForegroundEvent_ManagedTabStolenBackByWindowz_IsProcessed);
+        Run("ForegroundEvent_UnrelatedAppTookForeground_IsSkipped", ForegroundActivationPolicyTests.ForegroundEvent_UnrelatedAppTookForeground_IsSkipped);
+        Run("ForegroundEvent_NonManagedStaleEvent_IsSkipped", ForegroundActivationPolicyTests.ForegroundEvent_NonManagedStaleEvent_IsSkipped);
+        Run("ForegroundEvent_ForegroundMatchesEvent_IsAlwaysProcessed", ForegroundActivationPolicyTests.ForegroundEvent_ForegroundMatchesEvent_IsAlwaysProcessed);
+        Run("ForegroundEvent_OldManagedEvent_IsNotRevived", ForegroundActivationPolicyTests.ForegroundEvent_OldManagedEvent_IsNotRevived);
+        Run("ForegroundEvent_ManagedEventAtReviveBoundary_IsProcessed", ForegroundActivationPolicyTests.ForegroundEvent_ManagedEventAtReviveBoundary_IsProcessed);
+        Run("Promotion_OtherManagedWindowInForeground_IsAborted", ForegroundActivationPolicyTests.Promotion_OtherManagedWindowInForeground_IsAborted);
+        Run("Promotion_TargetInForeground_IsNotAborted", ForegroundActivationPolicyTests.Promotion_TargetInForeground_IsNotAborted);
+        Run("Promotion_WindowzInForeground_IsNotAborted", ForegroundActivationPolicyTests.Promotion_WindowzInForeground_IsNotAborted);
+        Run("Promotion_UnrelatedAppInForeground_IsNotAborted", ForegroundActivationPolicyTests.Promotion_UnrelatedAppInForeground_IsNotAborted);
+        Run("Promotion_TargetGroupWindowWins_OverOtherManagedFlag", ForegroundActivationPolicyTests.Promotion_TargetGroupWindowWins_OverOtherManagedFlag);
+        Run("RestoreGrace_MultipleActivatedWithinGrace_AllSuppressed", ForegroundActivationPolicyTests.RestoreGrace_MultipleActivatedWithinGrace_AllSuppressed);
+        Run("RestoreGrace_AfterGraceElapsed_ReclickIsAllowed", ForegroundActivationPolicyTests.RestoreGrace_AfterGraceElapsed_ReclickIsAllowed);
+        Run("RestoreGrace_NeverRestored_IsNotSuppressed", ForegroundActivationPolicyTests.RestoreGrace_NeverRestored_IsNotSuppressed);
+        Run("Scenario_TaskbarClickOnHiddenManagedApp_SwitchesTab", ForegroundActivationPolicyTests.Scenario_TaskbarClickOnHiddenManagedApp_SwitchesTab);
+        Run("CoVisible_TileMember_IsCoVisibleWithActiveTab", ForegroundActivationPolicyTests.CoVisible_TileMember_IsCoVisibleWithActiveTab);
+        Run("CoVisible_PinnedTab_IsCoVisibleWithActiveTab", ForegroundActivationPolicyTests.CoVisible_PinnedTab_IsCoVisibleWithActiveTab);
+        Run("CoVisible_SingleWindowMode_OtherTabIsNotCoVisible", ForegroundActivationPolicyTests.CoVisible_SingleWindowMode_OtherTabIsNotCoVisible);
+
         // ── 実 Win32 ウィンドウを使ったインテグレーションテスト ──
         Run("TryManageWindow_ValidHwnd_ReturnsTrue",              WindowManagerIntegrationTests.TryManageWindow_ValidHwnd_ReturnsTrue);
         Run("TryManageWindow_ZeroHandle_ReturnsFalse",            WindowManagerIntegrationTests.TryManageWindow_ZeroHandle_ReturnsFalse);

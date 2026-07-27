@@ -23,9 +23,10 @@ public partial class MainWindow
     private string _managedPromotionReason = string.Empty;
 
     // WindowState の StateChanged は Activated より後に届く場合があるため、管理対象の
-    // タスクバー操作で復元を開始する時点で先に立てる。
-    private bool _wasJustRestoredFromMinimize;
-    private bool _managedForegroundRestoreInProgress;
+    // タスクバー操作で復元を開始する時点で先に記録する。
+    // WPF は 1 回の復元で Activated を複数回発火するため、ワンショットのフラグではなく
+    // 時間窓 (ForegroundActivationPolicy.RestoreGraceMs) で判定する。
+    private long _restoredFromMinimizeTick;
     private long _lastWindowzForegroundFallbackTick;
     private IntPtr _taskbarMouseHook;
     private NativeMethods.LowLevelMouseProc? _taskbarMouseHookProc;
@@ -33,7 +34,8 @@ public partial class MainWindow
     private void MainWindow_Activated(object? sender, EventArgs e)
     {
         ActivationLog.Write("Activated",
-            $"state={WindowState} active={IsActive} justRestored={_wasJustRestoredFromMinimize} " +
+            $"state={WindowState} active={IsActive} " +
+            $"justRestored={ForegroundActivationPolicy.IsWithinRestoreGrace(Environment.TickCount64, _restoredFromMinimizeTick)} " +
             $"contentTab={_viewModel.IsContentTabActive} webTab={_viewModel.IsWebTabActive} " +
             $"lastNonTaskbarFg={ActivationLog.Describe(_lastNonTaskbarForegroundWindow)}");
 
@@ -161,6 +163,16 @@ public partial class MainWindow
         if (target == IntPtr.Zero || !CanPromoteManagedWindowToForeground())
             return;
 
+        // 別の managed タブのウィンドウが前景を取っているなら、ユーザーがタスクバー等で
+        // そのアプリを選んだ直後。旧タブを前景へ引き戻さず、そちらの選択を処理させる。
+        if (IsOtherManagedWindowInForeground(target))
+        {
+            ActivationLog.Write("Promote", $"skip ({reason}): other managed window is foreground");
+            CancelManagedWindowPromotion();
+            ScheduleForegroundWindowRecheck();
+            return;
+        }
+
         CancelManagedWindowPromotion();
 
         long generation = _managedPromotionGeneration;
@@ -201,12 +213,44 @@ public partial class MainWindow
             return;
         }
 
+        // リトライ中は CanContinueManagedWindowPromotion を評価しない (対象アプリが
+        // 応答するまで前景が定まらないため)。ただし別の managed タブのウィンドウが
+        // 前景を取った場合はユーザーの明示的な切り替えなので、リトライ中でも中止する。
+        if (IsOtherManagedWindowInForeground(_managedPromotionTarget))
+        {
+            ActivationLog.Write("Promote",
+                $"abort ({_managedPromotionReason}) generation={generation} " +
+                $"retry={_managedPromotionRetryCount}: other managed window is foreground");
+            CancelManagedWindowPromotion();
+            ScheduleForegroundWindowRecheck();
+            return;
+        }
+
         ActivationLog.Write("Promote",
             $"begin ({_managedPromotionReason}) generation={generation} " +
             $"retry={_managedPromotionRetryCount} target={ActivationLog.Describe(_managedPromotionTarget)}");
 
         UpdateManagedWindowLayout(activate: true);
         VerifyManagedWindowForegroundOrRetry(generation);
+    }
+
+    /// <summary>
+    /// 昇格対象とは別の managed タブのウィンドウが前景を取っているかを判定する。
+    /// タスクバーやタスクスイッチャーで別の管理アプリが選ばれた状態を表す。
+    /// </summary>
+    private bool IsOtherManagedWindowInForeground(IntPtr promotionTarget)
+    {
+        var foreground = NativeMethods.GetForegroundWindow();
+        if (foreground == IntPtr.Zero)
+            return false;
+
+        var foregroundTab = FindExternallyManagedTabForForegroundWindow(foreground);
+
+        return ForegroundActivationPolicy.ShouldAbortPromotion(
+            foreground == _mainWindowHandle,
+            IsInSameWindowGroup(foreground, promotionTarget),
+            // タイル・ピン留めで同時表示中のウィンドウ間の前景移動は切り替えではない
+            foregroundTab != null && !_tabManager.IsCoVisibleWithActiveTab(foregroundTab));
     }
 
     private bool CanContinueManagedWindowPromotion()
@@ -275,9 +319,8 @@ public partial class MainWindow
             return;
 
         // StateChanged より先に Activated が発生しても、タスクバー再クリックの最小化と
-        // 誤判定しないよう復元元を先に記録する。
-        _managedForegroundRestoreInProgress = true;
-        _wasJustRestoredFromMinimize = true;
+        // 誤判定しないよう復元時刻を先に記録する。
+        _restoredFromMinimizeTick = Environment.TickCount64;
         _activeManagedWindowHandle = IntPtr.Zero;
         WindowState = WindowState.Normal;
     }
@@ -293,11 +336,12 @@ public partial class MainWindow
             return false;
         }
 
-        // 管理対象のタスクバーボタンから復元した Activated は、再クリックによる
-        // 最小化ではない。RestoreWindowzForManagedForeground が StateChanged より先に立てる。
-        if (_wasJustRestoredFromMinimize)
+        // 管理対象のタスクバーボタンから復元した直後の Activated は、再クリックによる
+        // 最小化ではない。WPF は 1 回の復元で Activated を複数回発火するため、
+        // フラグを消費せず猶予時間内かどうかで判定する (消費すると 2 回目の Activated が
+        // 再クリックと誤判定され、復元⇄最小化のフラッピングになる)。
+        if (ForegroundActivationPolicy.IsWithinRestoreGrace(Environment.TickCount64, _restoredFromMinimizeTick))
         {
-            _wasJustRestoredFromMinimize = false;
             ActivationLog.Write("TaskbarMin", "skip: just restored from minimize");
             return false;
         }
