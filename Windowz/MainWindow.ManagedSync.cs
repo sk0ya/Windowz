@@ -134,6 +134,10 @@ public partial class MainWindow
         if (!ForegroundActivationPolicy.ShouldProcessForegroundEvent(
                 foregroundMatchesEvent,
                 matchingTab != null,
+                hwnd == _mainWindowHandle,
+                ForegroundActivationPolicy.FollowsRecentTaskbarClick(
+                    eventTick,
+                    _lastTaskbarClickTick),
                 currentForeground == _mainWindowHandle,
                 IsInSameWindowGroup(currentForeground, GetCurrentActiveManagedWindowHandle()),
                 Environment.TickCount64 - eventTick))
@@ -152,7 +156,7 @@ public partial class MainWindow
 
         if (hwnd == _mainWindowHandle)
         {
-            HandleWindowzForegroundEvent();
+            HandleWindowzForegroundEvent(allowForegroundOnActiveManagedWindow: !foregroundMatchesEvent);
             return;
         }
 

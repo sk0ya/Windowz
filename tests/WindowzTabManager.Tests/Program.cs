@@ -64,6 +64,11 @@ internal static class Program
         Run("ForegroundEvent_ForegroundMatchesEvent_IsAlwaysProcessed", ForegroundActivationPolicyTests.ForegroundEvent_ForegroundMatchesEvent_IsAlwaysProcessed);
         Run("ForegroundEvent_OldManagedEvent_IsNotRevived", ForegroundActivationPolicyTests.ForegroundEvent_OldManagedEvent_IsNotRevived);
         Run("ForegroundEvent_ManagedEventAtReviveBoundary_IsProcessed", ForegroundActivationPolicyTests.ForegroundEvent_ManagedEventAtReviveBoundary_IsProcessed);
+        Run("ForegroundEvent_WindowzAfterTaskbarClick_IsProcessedWhenForegroundAlreadyMoved", ForegroundActivationPolicyTests.ForegroundEvent_WindowzAfterTaskbarClick_IsProcessedWhenForegroundAlreadyMoved);
+        Run("ForegroundEvent_NonWindowzAfterTaskbarClick_IsSkipped", ForegroundActivationPolicyTests.ForegroundEvent_NonWindowzAfterTaskbarClick_IsSkipped);
+        Run("ForegroundEvent_WindowzAfterTaskbarClickButUnrelatedAppIsForeground_IsSkipped", ForegroundActivationPolicyTests.ForegroundEvent_WindowzAfterTaskbarClickButUnrelatedAppIsForeground_IsSkipped);
+        Run("ForegroundEvent_WindowzWithoutRecentTaskbarClick_IsSkipped", ForegroundActivationPolicyTests.ForegroundEvent_WindowzWithoutRecentTaskbarClick_IsSkipped);
+        Run("TaskbarCorrelation_BoundariesAndInvalidOrder_AreHandled", ForegroundActivationPolicyTests.TaskbarCorrelation_BoundariesAndInvalidOrder_AreHandled);
         Run("Promotion_OtherManagedWindowInForeground_IsAborted", ForegroundActivationPolicyTests.Promotion_OtherManagedWindowInForeground_IsAborted);
         Run("Promotion_TargetInForeground_IsNotAborted", ForegroundActivationPolicyTests.Promotion_TargetInForeground_IsNotAborted);
         Run("Promotion_WindowzInForeground_IsNotAborted", ForegroundActivationPolicyTests.Promotion_WindowzInForeground_IsNotAborted);

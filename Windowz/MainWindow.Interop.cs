@@ -25,7 +25,7 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(
                 DispatcherPriority.Normal,
-                HandleWindowzForegroundEvent);
+                () => HandleWindowzForegroundEvent());
         }
 
         // タスクバークリックで Z-order だけが変わる場合は WM_ACTIVATE と WinEvent の
@@ -34,7 +34,7 @@ public partial class MainWindow
         {
             Dispatcher.BeginInvoke(
                 DispatcherPriority.Background,
-                HandleWindowzForegroundEvent);
+                () => HandleWindowzForegroundEvent());
         }
 
         // When the window is not active and the user clicks anywhere on it,

@@ -28,6 +28,7 @@ public partial class MainWindow
     // 時間窓 (ForegroundActivationPolicy.RestoreGraceMs) で判定する。
     private long _restoredFromMinimizeTick;
     private long _lastWindowzForegroundFallbackTick;
+    private long _lastTaskbarClickTick;
     private IntPtr _taskbarMouseHook;
     private NativeMethods.LowLevelMouseProc? _taskbarMouseHookProc;
 
@@ -105,6 +106,9 @@ public partial class MainWindow
         if (nCode >= 0 && wParam.ToInt32() == NativeMethods.WM_LBUTTONUP)
         {
             var point = Marshal.PtrToStructure<NativeMethods.POINT>(lParam);
+            if (IsTaskbarWindowAtScreenPoint(point.X, point.Y))
+                _lastTaskbarClickTick = Environment.TickCount64;
+
             Dispatcher.BeginInvoke(
                 DispatcherPriority.Background,
                 () => HandleTaskbarClickAfterShellAsync(point));
@@ -127,7 +131,17 @@ public partial class MainWindow
     /// </summary>
     private void HandleWindowzForegroundEvent()
     {
-        if (NativeMethods.GetForegroundWindow() != _mainWindowHandle ||
+        HandleWindowzForegroundEvent(allowForegroundOnActiveManagedWindow: false);
+    }
+
+    private void HandleWindowzForegroundEvent(bool allowForegroundOnActiveManagedWindow)
+    {
+        var foreground = NativeMethods.GetForegroundWindow();
+        bool foregroundMovedToActiveManagedWindow =
+            allowForegroundOnActiveManagedWindow &&
+            IsInSameWindowGroup(foreground, GetCurrentActiveManagedWindowHandle());
+
+        if ((foreground != _mainWindowHandle && !foregroundMovedToActiveManagedWindow) ||
             WindowState == WindowState.Minimized ||
             _viewModel.IsCommandPaletteOpen ||
             _viewModel.IsWindowPickerOpen)

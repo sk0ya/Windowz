@@ -24,6 +24,12 @@ public static class ForegroundActivationPolicy
     public const int StaleManagedEventReviveWindowMs = 750;
 
     /// <summary>
+    /// タスクバークリック後に届いた Windowz の前景イベントをユーザー操作として
+    /// 相関できる上限。
+    /// </summary>
+    public const int TaskbarClickCorrelationMs = 1500;
+
+    /// <summary>
     /// OUTOFCONTEXT の WinEvent は Dispatcher に届くまでに古くなることがあるため、
     /// 到着時点の前景と食い違うイベントは原則破棄する。
     /// ただし managed タブのウィンドウの前景化は、ユーザーがタスクバー等で明示的に
@@ -42,8 +48,33 @@ public static class ForegroundActivationPolicy
         bool foregroundIsActiveManagedWindow,
         long eventAgeMs)
     {
+        return ShouldProcessForegroundEvent(
+            foregroundMatchesEvent,
+            eventMatchesManagedTab,
+            eventIsWindowz: false,
+            followsRecentTaskbarClick: false,
+            foregroundIsWindowz,
+            foregroundIsActiveManagedWindow,
+            eventAgeMs);
+    }
+
+    public static bool ShouldProcessForegroundEvent(
+        bool foregroundMatchesEvent,
+        bool eventMatchesManagedTab,
+        bool eventIsWindowz,
+        bool followsRecentTaskbarClick,
+        bool foregroundIsWindowz,
+        bool foregroundIsActiveManagedWindow,
+        long eventAgeMs)
+    {
         if (foregroundMatchesEvent)
             return true;
+
+        // Windowz は Activated を通知しないことがある。タスクバークリック直後の
+        // Windowz 前景イベントなら、到着時に managed window へ前景を渡し終えて
+        // 食い違っていてもユーザー操作として処理する。
+        if (eventIsWindowz && followsRecentTaskbarClick)
+            return foregroundIsWindowz || foregroundIsActiveManagedWindow;
 
         // managed タブに紐づかないウィンドウの古いイベントは破棄する。
         // (古いイベントで最小化中の Windowz を復元してタスクバー操作が反転するのを防ぐ)
@@ -57,6 +88,19 @@ public static class ForegroundActivationPolicy
         // 前景を持っているのが Windowz 自身か現アクティブタブのウィンドウなら、
         // 前景の奪い返しは Windowz 側の昇格処理が原因。ユーザーの選択を優先する。
         return foregroundIsWindowz || foregroundIsActiveManagedWindow;
+    }
+
+    /// <summary>
+    /// 前景イベントが直前のタスクバークリックから生じたものかを判定する。
+    /// イベントより後のクリックや、未記録値は相関させない。
+    /// </summary>
+    public static bool FollowsRecentTaskbarClick(long eventTick, long taskbarClickTick)
+    {
+        if (taskbarClickTick <= 0)
+            return false;
+
+        long elapsed = eventTick - taskbarClickTick;
+        return elapsed >= 0 && elapsed <= TaskbarClickCorrelationMs;
     }
 
     /// <summary>

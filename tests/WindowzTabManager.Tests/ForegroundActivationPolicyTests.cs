@@ -142,6 +142,84 @@ internal static class ForegroundActivationPolicyTests
         Assert(process, "復活ウィンドウの境界値ちょうどのイベントは処理されるべき。");
     }
 
+    internal static void ForegroundEvent_WindowzAfterTaskbarClick_IsProcessedWhenForegroundAlreadyMoved()
+    {
+        bool process = ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+            foregroundMatchesEvent: false,
+            eventMatchesManagedTab: false,
+            eventIsWindowz: true,
+            followsRecentTaskbarClick: true,
+            foregroundIsWindowz: false,
+            foregroundIsActiveManagedWindow: true,
+            eventAgeMs: 80);
+
+        Assert(process,
+            "タスクバークリック由来の Windowz 前景イベントは、managed window へ前景を渡した後でも処理されるべき。");
+    }
+
+    internal static void ForegroundEvent_NonWindowzAfterTaskbarClick_IsSkipped()
+    {
+        bool process = ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+            foregroundMatchesEvent: false,
+            eventMatchesManagedTab: false,
+            eventIsWindowz: false,
+            followsRecentTaskbarClick: true,
+            foregroundIsWindowz: false,
+            foregroundIsActiveManagedWindow: false,
+            eventAgeMs: 20);
+
+        Assert(!process, "タスクバークリックは無関係な stale イベントを復活させないべき。");
+    }
+
+    internal static void ForegroundEvent_WindowzAfterTaskbarClickButUnrelatedAppIsForeground_IsSkipped()
+    {
+        bool process = ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+            foregroundMatchesEvent: false,
+            eventMatchesManagedTab: false,
+            eventIsWindowz: true,
+            followsRecentTaskbarClick: true,
+            foregroundIsWindowz: false,
+            foregroundIsActiveManagedWindow: false,
+            eventAgeMs: 20);
+
+        Assert(!process,
+            "クリック後にユーザーが無関係なアプリへ移った場合は Windowz を前面へ戻さないべき。");
+    }
+
+    internal static void ForegroundEvent_WindowzWithoutRecentTaskbarClick_IsSkipped()
+    {
+        bool process = ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+            foregroundMatchesEvent: false,
+            eventMatchesManagedTab: false,
+            eventIsWindowz: true,
+            followsRecentTaskbarClick: false,
+            foregroundIsWindowz: false,
+            foregroundIsActiveManagedWindow: true,
+            eventAgeMs: 20);
+
+        Assert(!process, "ユーザー操作と相関できない Windowz の stale イベントは破棄されるべき。");
+    }
+
+    internal static void TaskbarCorrelation_BoundariesAndInvalidOrder_AreHandled()
+    {
+        const long clickTick = 10_000;
+
+        Assert(ForegroundActivationPolicy.FollowsRecentTaskbarClick(clickTick, clickTick),
+            "クリックと同時刻のイベントは相関するべき。");
+        Assert(ForegroundActivationPolicy.FollowsRecentTaskbarClick(
+                clickTick + ForegroundActivationPolicy.TaskbarClickCorrelationMs,
+                clickTick),
+            "相関時間窓の上限ちょうどは相関するべき。");
+        Assert(!ForegroundActivationPolicy.FollowsRecentTaskbarClick(
+                clickTick + ForegroundActivationPolicy.TaskbarClickCorrelationMs + 1,
+                clickTick),
+            "相関時間窓を超えたイベントは相関しないべき。");
+        Assert(!ForegroundActivationPolicy.FollowsRecentTaskbarClick(clickTick - 1, clickTick),
+            "クリックより前のイベントは相関しないべき。");
+        Assert(!ForegroundActivationPolicy.FollowsRecentTaskbarClick(clickTick, 0),
+            "クリック未記録時は相関しないべき。");
+    }
+
     // ─────────────────────────────────────────
     // 昇格の中止判定 (ShouldAbortPromotion)
     // ─────────────────────────────────────────
