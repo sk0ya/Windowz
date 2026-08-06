@@ -69,6 +69,23 @@ internal static class Program
         Run("ForegroundEvent_WindowzAfterTaskbarClickButUnrelatedAppIsForeground_IsSkipped", ForegroundActivationPolicyTests.ForegroundEvent_WindowzAfterTaskbarClickButUnrelatedAppIsForeground_IsSkipped);
         Run("ForegroundEvent_WindowzWithoutRecentTaskbarClick_IsSkipped", ForegroundActivationPolicyTests.ForegroundEvent_WindowzWithoutRecentTaskbarClick_IsSkipped);
         Run("TaskbarCorrelation_BoundariesAndInvalidOrder_AreHandled", ForegroundActivationPolicyTests.TaskbarCorrelation_BoundariesAndInvalidOrder_AreHandled);
+        Run("ForegroundEvent_StaleWindowzAfterTaskbarClick_IsNotRevived", ForegroundActivationPolicyTests.ForegroundEvent_StaleWindowzAfterTaskbarClick_IsNotRevived);
+        Run("ForegroundEvent_WindowzAfterTaskbarClickAtReviveBoundary_IsProcessed", ForegroundActivationPolicyTests.ForegroundEvent_WindowzAfterTaskbarClickAtReviveBoundary_IsProcessed);
+        Run("ForegroundEvent_WindowzAfterTaskbarClick_ToleratesLongerDelayThanManaged", ForegroundActivationPolicyTests.ForegroundEvent_WindowzAfterTaskbarClick_ToleratesLongerDelayThanManaged);
+        Run("ForegroundEvent_MatchingEvent_IsNotAffectedByReviveWindow", ForegroundActivationPolicyTests.ForegroundEvent_MatchingEvent_IsNotAffectedByReviveWindow);
+
+        // ── タスクバー再クリックによる最小化 ──
+        Run("TaskbarMinimize_ReclickOnVisibleManagedApp_Minimizes", ForegroundActivationPolicyTests.TaskbarMinimize_ReclickOnVisibleManagedApp_Minimizes);
+        Run("TaskbarMinimize_PointerOnTaskbarWithoutClick_IsNotMinimized", ForegroundActivationPolicyTests.TaskbarMinimize_PointerOnTaskbarWithoutClick_IsNotMinimized);
+        Run("TaskbarMinimize_ClickOutsideCorrelationWindow_IsNotMinimized", ForegroundActivationPolicyTests.TaskbarMinimize_ClickOutsideCorrelationWindow_IsNotMinimized);
+        Run("TaskbarMinimize_PointerNotOnTaskbar_IsNotMinimized", ForegroundActivationPolicyTests.TaskbarMinimize_PointerNotOnTaskbar_IsNotMinimized);
+        Run("TaskbarMinimize_LastForegroundWasUnrelatedApp_IsNotMinimized", ForegroundActivationPolicyTests.TaskbarMinimize_LastForegroundWasUnrelatedApp_IsNotMinimized);
+        Run("TaskbarMinimize_JustRestoredFromMinimize_IsNotMinimized", ForegroundActivationPolicyTests.TaskbarMinimize_JustRestoredFromMinimize_IsNotMinimized);
+        Run("TaskbarMinimize_AfterRestoreGraceElapsed_Minimizes", ForegroundActivationPolicyTests.TaskbarMinimize_AfterRestoreGraceElapsed_Minimizes);
+        Run("TaskbarMinimize_ContentOrWebTabActive_IsNotMinimized", ForegroundActivationPolicyTests.TaskbarMinimize_ContentOrWebTabActive_IsNotMinimized);
+        Run("TaskbarMinimize_NoManagedWindow_IsNotMinimized", ForegroundActivationPolicyTests.TaskbarMinimize_NoManagedWindow_IsNotMinimized);
+        Run("TaskbarMinimize_Suppressed_IsNotMinimized", ForegroundActivationPolicyTests.TaskbarMinimize_Suppressed_IsNotMinimized);
+        Run("TaskbarMinimize_SkipReasonPriority_IsStable", ForegroundActivationPolicyTests.TaskbarMinimize_SkipReasonPriority_IsStable);
         Run("Promotion_OtherManagedWindowInForeground_IsAborted", ForegroundActivationPolicyTests.Promotion_OtherManagedWindowInForeground_IsAborted);
         Run("Promotion_TargetInForeground_IsNotAborted", ForegroundActivationPolicyTests.Promotion_TargetInForeground_IsNotAborted);
         Run("Promotion_WindowzInForeground_IsNotAborted", ForegroundActivationPolicyTests.Promotion_WindowzInForeground_IsNotAborted);
@@ -78,6 +95,10 @@ internal static class Program
         Run("RestoreGrace_AfterGraceElapsed_ReclickIsAllowed", ForegroundActivationPolicyTests.RestoreGrace_AfterGraceElapsed_ReclickIsAllowed);
         Run("RestoreGrace_NeverRestored_IsNotSuppressed", ForegroundActivationPolicyTests.RestoreGrace_NeverRestored_IsNotSuppressed);
         Run("Scenario_TaskbarClickOnHiddenManagedApp_SwitchesTab", ForegroundActivationPolicyTests.Scenario_TaskbarClickOnHiddenManagedApp_SwitchesTab);
+        Run("Scenario_AltTabWhileCursorRestsOnTaskbar_DoesNotMinimize", ForegroundActivationPolicyTests.Scenario_AltTabWhileCursorRestsOnTaskbar_DoesNotMinimize);
+        Run("Scenario_TaskbarClickOnNonManagedApp_DoesNotMinimizeWindowz", ForegroundActivationPolicyTests.Scenario_TaskbarClickOnNonManagedApp_DoesNotMinimizeWindowz);
+        Run("Scenario_TaskbarReclickOnActiveManagedApp_MinimizesWindowz", ForegroundActivationPolicyTests.Scenario_TaskbarReclickOnActiveManagedApp_MinimizesWindowz);
+        Run("Scenario_TaskbarReclickOnTileMember_MinimizesWindowz", ForegroundActivationPolicyTests.Scenario_TaskbarReclickOnTileMember_MinimizesWindowz);
         Run("CoVisible_TileMember_IsCoVisibleWithActiveTab", ForegroundActivationPolicyTests.CoVisible_TileMember_IsCoVisibleWithActiveTab);
         Run("CoVisible_PinnedTab_IsCoVisibleWithActiveTab", ForegroundActivationPolicyTests.CoVisible_PinnedTab_IsCoVisibleWithActiveTab);
         Run("CoVisible_SingleWindowMode_OtherTabIsNotCoVisible", ForegroundActivationPolicyTests.CoVisible_SingleWindowMode_OtherTabIsNotCoVisible);

@@ -29,6 +29,15 @@ public partial class MainWindow
     private long _restoredFromMinimizeTick;
     private long _lastWindowzForegroundFallbackTick;
     private long _lastTaskbarClickTick;
+
+    // タスクバーをクリックした瞬間にアクティブだったアプリ。
+    // 再クリック最小化は「今表示しているアプリのボタンをもう一度押した」操作なので、
+    // クリック時点でそのアプリがアクティブだったことが条件になる。
+    // Activated 時点の _lastNonTaskbarForegroundWindow を見てはいけない。クリックで
+    // 別アプリが引っ込むと、その裏の managed ウィンドウが前景に上がって
+    // 「managed アプリがアクティブだった」ように見えてしまう。
+    private IntPtr _taskbarClickPreviousForeground;
+
     private IntPtr _taskbarMouseHook;
     private NativeMethods.LowLevelMouseProc? _taskbarMouseHookProc;
 
@@ -103,11 +112,21 @@ public partial class MainWindow
 
     private IntPtr OnTaskbarMouseHook(int nCode, IntPtr wParam, IntPtr lParam)
     {
+        // BUTTONUP だけを見る。タスクバーボタンは UP で動作し、LL フックは
+        // シェルにメッセージが届く前に呼ばれるので、記録は必ず Activated に先行する。
+        // BUTTONDOWN でも記録すると、消費済みのクリックが同じクリックの UP で
+        // 再武装されてしまい、_lastTaskbarClickTick のクリアが無意味になる。
         if (nCode >= 0 && wParam.ToInt32() == NativeMethods.WM_LBUTTONUP)
         {
             var point = Marshal.PtrToStructure<NativeMethods.POINT>(lParam);
             if (IsTaskbarWindowAtScreenPoint(point.X, point.Y))
+            {
                 _lastTaskbarClickTick = Environment.TickCount64;
+
+                // シェルがクリックを処理する前なので、ここでの値がクリック直前の
+                // アクティブアプリ (タスクバー系は除外済み)。
+                _taskbarClickPreviousForeground = _lastNonTaskbarForegroundWindow;
+            }
 
             Dispatcher.BeginInvoke(
                 DispatcherPriority.Background,
@@ -341,46 +360,37 @@ public partial class MainWindow
 
     private bool TryMinimizeWindowzFromTaskbarActivation()
     {
-        if (_suppressManagedWindowPromotion ||
-            _viewModel.IsCommandPaletteOpen ||
-            _viewModel.IsWindowPickerOpen ||
-            _viewModel.IsContentTabActive ||
-            _viewModel.IsWebTabActive)
-        {
-            return false;
-        }
-
-        // 管理対象のタスクバーボタンから復元した直後の Activated は、再クリックによる
-        // 最小化ではない。WPF は 1 回の復元で Activated を複数回発火するため、
-        // フラグを消費せず猶予時間内かどうかで判定する (消費すると 2 回目の Activated が
-        // 再クリックと誤判定され、復元⇄最小化のフラッピングになる)。
-        if (ForegroundActivationPolicy.IsWithinRestoreGrace(Environment.TickCount64, _restoredFromMinimizeTick))
-        {
-            ActivationLog.Write("TaskbarMin", "skip: just restored from minimize");
-            return false;
-        }
-
+        long now = Environment.TickCount64;
         var currentManagedHandle = GetCurrentActiveManagedWindowHandle();
-        if (currentManagedHandle == IntPtr.Zero)
-            return false;
 
-        // Shell_TrayWnd が一瞬フォアグラウンドを取得するため、タスクバー以外で
-        // 最後に前景化したウィンドウが現在の管理対象かを使って再クリックを判定する。
-        if (!IsInSameWindowGroup(_lastNonTaskbarForegroundWindow, currentManagedHandle))
+        var reason = ForegroundActivationPolicy.EvaluateTaskbarMinimize(
+            suppressed: _suppressManagedWindowPromotion ||
+                        _viewModel.IsCommandPaletteOpen ||
+                        _viewModel.IsWindowPickerOpen,
+            contentOrWebTabActive: _viewModel.IsContentTabActive || _viewModel.IsWebTabActive,
+            hasActiveManagedWindow: currentManagedHandle != IntPtr.Zero,
+            visibleManagedAppWasActiveAtClick: WasVisibleManagedAppActiveAtTaskbarClick(),
+            pointerOnTaskbar: IsTaskbarPointerActivation(),
+            followsRecentTaskbarClick: ForegroundActivationPolicy.FollowsRecentTaskbarClick(
+                now,
+                _lastTaskbarClickTick),
+            nowTick: now,
+            restoredFromMinimizeTick: _restoredFromMinimizeTick);
+
+        if (reason != ForegroundActivationPolicy.TaskbarMinimizeSkipReason.None)
         {
             ActivationLog.Write("TaskbarMin",
-                $"skip: lastNonTaskbarFg={ActivationLog.Describe(_lastNonTaskbarForegroundWindow)} " +
-                $"not in group of managed={ActivationLog.Describe(currentManagedHandle)}");
+                $"skip ({reason}): activeAtClick={ActivationLog.Describe(_taskbarClickPreviousForeground)} " +
+                $"lastNonTaskbarFg={ActivationLog.Describe(_lastNonTaskbarForegroundWindow)} " +
+                $"managed={ActivationLog.Describe(currentManagedHandle)}");
             return false;
         }
 
-        if (!IsTaskbarPointerActivation())
-        {
-            ActivationLog.Write("TaskbarMin", "skip: pointer not on taskbar");
-            return false;
-        }
+        ActivationLog.Write("TaskbarMin", "MATCH -> minimizing Windowz (taskbar re-click on visible managed app)");
 
-        ActivationLog.Write("TaskbarMin", "MATCH -> minimizing Windowz (taskbar re-click on active managed app)");
+        // 同じクリックを 2 度消費しないよう相関を切る。
+        _lastTaskbarClickTick = 0;
+        _taskbarClickPreviousForeground = IntPtr.Zero;
         CancelManagedWindowPromotion();
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
         {
@@ -421,19 +431,61 @@ public partial class MainWindow
         return handle;
     }
 
+    /// <summary>
+    /// タスクバーをクリックした瞬間にアクティブだったアプリが、今画面に見えている
+    /// managed ウィンドウかを判定する。タイル・ピン留めで同時表示中のウィンドウも
+    /// 含める (アクティブタブのウィンドウとだけ突き合わせると、タイルの別スロットを
+    /// 触っていた場合に再クリック最小化が効かなくなる)。
+    /// </summary>
+    private bool WasVisibleManagedAppActiveAtTaskbarClick()
+    {
+        var activeAtClick = _taskbarClickPreviousForeground;
+        if (activeAtClick == IntPtr.Zero)
+            return false;
+
+        if (IsInSameWindowGroup(activeAtClick, GetCurrentActiveManagedWindowHandle()))
+            return true;
+
+        var tab = FindExternallyManagedTabForForegroundWindow(activeAtClick);
+        return tab != null && _tabManager.IsCoVisibleWithActiveTab(tab);
+    }
+
     private bool IsTaskbarPointerActivation()
     {
         if (!NativeMethods.GetCursorPos(out var cursorPos))
             return false;
 
-        if (IsScreenPointInsideWindow(cursorPos.X, cursorPos.Y))
+        // Windowz の矩形内かは見ない。自動非表示のタスクバーは Windowz に重なって
+        // 手前に表示されるため、矩形で弾くと再クリック最小化が一切効かなくなる。
+        // WindowFromPoint はその座標で最前面のウィンドウを返すので、
+        // タスクバーが返るなら実際にタスクバーが手前にある。
+        if (!TryGetPointedWindowClassNames(cursorPos.X, cursorPos.Y, out var className, out var rootClassName))
             return false;
 
-        return IsTaskbarWindowAtScreenPoint(cursorPos.X, cursorPos.Y);
+        // サムネイルプレビューも Windowz の上に重なって表示されるが、そこでのクリックは
+        // Windows の挙動としては「アクティブにする」であって最小化トグルではない。
+        // 再クリック最小化の対象からは外す (クリック記録の側では従来どおり数える)。
+        if (IsTaskbarThumbnailClassName(className) || IsTaskbarThumbnailClassName(rootClassName))
+            return false;
+
+        return IsTaskbarClassName(className) || IsTaskbarClassName(rootClassName);
     }
 
     private static bool IsTaskbarWindowAtScreenPoint(int screenX, int screenY)
     {
+        return TryGetPointedWindowClassNames(screenX, screenY, out var className, out var rootClassName) &&
+               (IsTaskbarClassName(className) || IsTaskbarClassName(rootClassName));
+    }
+
+    private static bool TryGetPointedWindowClassNames(
+        int screenX,
+        int screenY,
+        out string className,
+        out string rootClassName)
+    {
+        className = string.Empty;
+        rootClassName = string.Empty;
+
         var pointedWindow = NativeMethods.WindowFromPoint(new NativeMethods.POINT
         {
             X = screenX,
@@ -446,8 +498,14 @@ public partial class MainWindow
         if (root == IntPtr.Zero)
             root = pointedWindow;
 
-        return IsTaskbarClassName(NativeMethods.GetWindowClassName(pointedWindow)) ||
-               IsTaskbarClassName(NativeMethods.GetWindowClassName(root));
+        className = NativeMethods.GetWindowClassName(pointedWindow);
+        rootClassName = NativeMethods.GetWindowClassName(root);
+        return true;
+    }
+
+    private static bool IsTaskbarThumbnailClassName(string className)
+    {
+        return className is "TaskListThumbnailWnd";
     }
 
     private static bool IsTaskbarClassName(string className)

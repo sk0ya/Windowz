@@ -220,6 +220,256 @@ internal static class ForegroundActivationPolicyTests
             "クリック未記録時は相関しないべき。");
     }
 
+    /// <summary>
+    /// タスクバークリック相関で復活させる Windowz イベントにも上限を設ける。
+    /// Dispatcher に数秒滞留したイベントで Windowz が勝手に前へ出てはいけない。
+    /// </summary>
+    internal static void ForegroundEvent_StaleWindowzAfterTaskbarClick_IsNotRevived()
+    {
+        bool process = ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+            foregroundMatchesEvent: false,
+            eventMatchesManagedTab: false,
+            eventIsWindowz: true,
+            followsRecentTaskbarClick: true,
+            foregroundIsWindowz: false,
+            foregroundIsActiveManagedWindow: true,
+            eventAgeMs: ForegroundActivationPolicy.TaskbarClickCorrelationMs + 1);
+
+        Assert(!process,
+            "タスクバークリックと相関していても、上限を超えて滞留した " +
+            "Windowz イベントは破棄されるべき。");
+    }
+
+    /// <summary>Windowz イベントの復活は境界値ちょうどまで許可する。</summary>
+    internal static void ForegroundEvent_WindowzAfterTaskbarClickAtReviveBoundary_IsProcessed()
+    {
+        bool process = ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+            foregroundMatchesEvent: false,
+            eventMatchesManagedTab: false,
+            eventIsWindowz: true,
+            followsRecentTaskbarClick: true,
+            foregroundIsWindowz: false,
+            foregroundIsActiveManagedWindow: true,
+            eventAgeMs: ForegroundActivationPolicy.TaskbarClickCorrelationMs);
+
+        Assert(process, "上限ちょうどまで滞留した Windowz イベントは処理されるべき。");
+    }
+
+    /// <summary>
+    /// 回帰テスト: Windowz 前景イベントの復活上限は managed 経路より緩い。
+    ///
+    /// この経路のイベントは、昇格処理が応答の遅い managed プロセスを待つ間
+    /// (最大 1000ms のリトライ) に滞留しやすい。managed 経路と同じ 750ms で
+    /// 打ち切ると、タスクバーで Windowz を選んでも前へ出てこなくなる。
+    /// 復活条件が「前景が Windowz か現アクティブタブ」なので、第三のアプリから
+    /// 前景を奪う危険はない。
+    /// </summary>
+    internal static void ForegroundEvent_WindowzAfterTaskbarClick_ToleratesLongerDelayThanManaged()
+    {
+        const long ageMs = ForegroundActivationPolicy.StaleManagedEventReviveWindowMs + 200;
+
+        Assert(ageMs < ForegroundActivationPolicy.TaskbarClickCorrelationMs,
+            "テスト前提: managed の上限と相関窓の間にある経過時間を使う。");
+
+        Assert(
+            ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+                foregroundMatchesEvent: false,
+                eventMatchesManagedTab: false,
+                eventIsWindowz: true,
+                followsRecentTaskbarClick: true,
+                foregroundIsWindowz: false,
+                foregroundIsActiveManagedWindow: true,
+                eventAgeMs: ageMs),
+            "昇格処理で UI スレッドが塞がって滞留した Windowz イベントも処理されるべき。");
+
+        Assert(
+            !ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+                foregroundMatchesEvent: false,
+                eventMatchesManagedTab: true,
+                eventIsWindowz: false,
+                followsRecentTaskbarClick: true,
+                foregroundIsWindowz: false,
+                foregroundIsActiveManagedWindow: true,
+                eventAgeMs: ageMs),
+            "managed 経路は従来どおり短い上限で打ち切られるべき。");
+    }
+
+    /// <summary>前景一致イベントは経過時間の上限を受けない (通常経路を塞がない)。</summary>
+    internal static void ForegroundEvent_MatchingEvent_IsNotAffectedByReviveWindow()
+    {
+        bool process = ForegroundActivationPolicy.ShouldProcessForegroundEvent(
+            foregroundMatchesEvent: true,
+            eventMatchesManagedTab: true,
+            eventIsWindowz: false,
+            followsRecentTaskbarClick: false,
+            foregroundIsWindowz: false,
+            foregroundIsActiveManagedWindow: false,
+            eventAgeMs: 60_000);
+
+        Assert(process,
+            "到着時の前景とイベントが一致していれば、どれだけ古くても処理されるべき。");
+    }
+
+    // ─────────────────────────────────────────
+    // タスクバー再クリックによる最小化 (EvaluateTaskbarMinimize)
+    //
+    // 既定値は「最小化する」状態。各テストは 1 条件だけ崩して、
+    // その条件が最小化を止めることを確認する。
+    // ─────────────────────────────────────────
+
+    /// <summary>
+    /// 通常経路: 表示中の managed アプリのタスクバーボタンを再クリックしたら、
+    /// Windowz ごと最小化する。
+    /// </summary>
+    internal static void TaskbarMinimize_ReclickOnVisibleManagedApp_Minimizes()
+    {
+        Assert(EvaluateMinimize() == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.None,
+            "表示中の managed アプリのタスクバー再クリックは Windowz を最小化すべき。");
+    }
+
+    /// <summary>
+    /// 回帰テスト: カーソルをタスクバー上に置いたまま Alt+Tab やホットキーで
+    /// Windowz を前面化した場合、最小化してはいけない。
+    ///
+    /// 修正前: 判定がポインタ位置だけだったため、クリックしていないのに
+    ///         「タスクバー再クリック」と誤判定し、アクティブにしたつもりの
+    ///         ウィンドウがそのまま引っ込んでいた。
+    /// </summary>
+    internal static void TaskbarMinimize_PointerOnTaskbarWithoutClick_IsNotMinimized()
+    {
+        var reason = EvaluateMinimize(followsRecentTaskbarClick: false);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.NoRecentTaskbarClick,
+            $"クリックと相関しない前面化は最小化しないべき。実際: {reason}");
+    }
+
+    /// <summary>クリックが相関時間窓を超えて古い場合も、その前面化は別要因。</summary>
+    internal static void TaskbarMinimize_ClickOutsideCorrelationWindow_IsNotMinimized()
+    {
+        const long clickTick = 500_000;
+        long nowTick = clickTick + ForegroundActivationPolicy.TaskbarClickCorrelationMs + 1;
+
+        var reason = EvaluateMinimize(
+            followsRecentTaskbarClick:
+                ForegroundActivationPolicy.FollowsRecentTaskbarClick(nowTick, clickTick),
+            nowTick: nowTick);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.NoRecentTaskbarClick,
+            $"相関時間窓を過ぎたクリックでは最小化しないべき。実際: {reason}");
+    }
+
+    /// <summary>ポインタがタスクバー上にない前面化は再クリックではない。</summary>
+    internal static void TaskbarMinimize_PointerNotOnTaskbar_IsNotMinimized()
+    {
+        var reason = EvaluateMinimize(pointerOnTaskbar: false);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.PointerNotOnTaskbar,
+            $"ポインタがタスクバー上にないなら最小化しないべき。実際: {reason}");
+    }
+
+    /// <summary>
+    /// 直前の前景が無関係なアプリ (Chrome 等) なら、これは「非表示アプリを選んで
+    /// 前面化した」操作であって再クリックではない。ここで最小化すると、
+    /// ユーザーが選んだアプリが即座に引っ込む。
+    /// </summary>
+    internal static void TaskbarMinimize_LastForegroundWasUnrelatedApp_IsNotMinimized()
+    {
+        var reason = EvaluateMinimize(visibleManagedAppWasActiveAtClick: false);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.OtherAppWasActiveAtClick,
+            $"直前の前景が表示中の managed ウィンドウでないなら最小化しないべき。実際: {reason}");
+    }
+
+    /// <summary>
+    /// 回帰テスト: 復元直後の Activated は再クリックではない。
+    /// WPF は 1 回の復元で Activated を複数回発火するため、猶予時間内は抑止する。
+    /// </summary>
+    internal static void TaskbarMinimize_JustRestoredFromMinimize_IsNotMinimized()
+    {
+        const long restoredAt = 800_000;
+
+        Assert(EvaluateMinimize(nowTick: restoredAt, restoredFromMinimizeTick: restoredAt)
+                   == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.JustRestored,
+            "復元と同時刻の Activated は最小化しないべき。");
+        Assert(EvaluateMinimize(nowTick: restoredAt + 200, restoredFromMinimizeTick: restoredAt)
+                   == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.JustRestored,
+            "猶予時間内の 2 回目以降の Activated も最小化しないべき (フラッピング防止)。");
+    }
+
+    /// <summary>猶予が明けたあとの再クリックは、本来どおり最小化する。</summary>
+    internal static void TaskbarMinimize_AfterRestoreGraceElapsed_Minimizes()
+    {
+        const long restoredAt = 800_000;
+        long nowTick = restoredAt + ForegroundActivationPolicy.RestoreGraceMs;
+
+        Assert(EvaluateMinimize(nowTick: nowTick, restoredFromMinimizeTick: restoredAt)
+                   == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.None,
+            "猶予時間を過ぎた再クリックは最小化すべき。");
+    }
+
+    /// <summary>
+    /// 設定タブ / Web タブ表示中は managed ウィンドウを表示していないので、
+    /// タスクバー操作で Windowz を最小化しない (現仕様の固定)。
+    /// </summary>
+    internal static void TaskbarMinimize_ContentOrWebTabActive_IsNotMinimized()
+    {
+        var reason = EvaluateMinimize(contentOrWebTabActive: true);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.ContentOrWebTab,
+            $"設定 / Web タブ表示中は最小化しないべき。実際: {reason}");
+    }
+
+    /// <summary>アクティブタブに managed ウィンドウがなければ再クリック判定は成立しない。</summary>
+    internal static void TaskbarMinimize_NoManagedWindow_IsNotMinimized()
+    {
+        var reason = EvaluateMinimize(hasActiveManagedWindow: false);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.NoManagedWindow,
+            $"managed ウィンドウがないなら最小化しないべき。実際: {reason}");
+    }
+
+    /// <summary>タブドラッグ中・オーバーレイ表示中は前面化の調停自体を止める。</summary>
+    internal static void TaskbarMinimize_Suppressed_IsNotMinimized()
+    {
+        var reason = EvaluateMinimize(suppressed: true);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.Suppressed,
+            $"調停停止中は最小化しないべき。実際: {reason}");
+    }
+
+    /// <summary>
+    /// 複数条件が同時に崩れているときの判定順序を固定する。
+    /// ログに出る理由が安定しないと、実機ログからの原因追跡ができなくなる。
+    /// </summary>
+    internal static void TaskbarMinimize_SkipReasonPriority_IsStable()
+    {
+        Assert(EvaluateMinimize(
+                   suppressed: true,
+                   contentOrWebTabActive: true,
+                   hasActiveManagedWindow: false,
+                   visibleManagedAppWasActiveAtClick: false,
+                   pointerOnTaskbar: false,
+                   followsRecentTaskbarClick: false)
+               == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.Suppressed,
+            "調停停止が最優先で報告されるべき。");
+
+        Assert(EvaluateMinimize(
+                   contentOrWebTabActive: true,
+                   hasActiveManagedWindow: false,
+                   pointerOnTaskbar: false)
+               == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.ContentOrWebTab,
+            "content / web タブは managed ウィンドウ有無より先に報告されるべき。");
+
+        Assert(EvaluateMinimize(
+                   hasActiveManagedWindow: false,
+                   visibleManagedAppWasActiveAtClick: false,
+                   pointerOnTaskbar: false,
+                   nowTick: 800_000,
+                   restoredFromMinimizeTick: 800_000)
+               == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.JustRestored,
+            "復元直後は他のどの条件より先に報告されるべき。");
+    }
+
     // ─────────────────────────────────────────
     // 昇格の中止判定 (ShouldAbortPromotion)
     // ─────────────────────────────────────────
@@ -371,6 +621,118 @@ internal static class ForegroundActivationPolicyTests
             "昇格に先を越されても、Editor の前景化イベントは処理されてタブが切り替わるべき。");
     }
 
+    /// <summary>
+    /// 回帰テスト: カーソルがタスクバー上にある状態で Alt+Tab / ホットキーから
+    /// Windowz を前面化するシナリオ。
+    ///
+    ///   1. managed アプリが前景 (= _lastNonTaskbarForegroundWindow はそのウィンドウ)
+    ///   2. ユーザーがカーソルをタスクバー上に置いたまま Alt+Tab で Windowz を選ぶ
+    ///   3. Activated が発火する
+    ///
+    /// 修正前: 1 と「ポインタがタスクバー上」だけで再クリックと判定し、最小化していた。
+    /// 修正後: 直近のタスクバークリックと相関しないため最小化しない。
+    /// </summary>
+    internal static void Scenario_AltTabWhileCursorRestsOnTaskbar_DoesNotMinimize()
+    {
+        const long lastClickTick = 100_000;
+        // 直近のタスクバークリックはずっと前 (相関窓の外)
+        long nowTick = lastClickTick + ForegroundActivationPolicy.TaskbarClickCorrelationMs + 5_000;
+
+        var reason = EvaluateMinimize(
+            visibleManagedAppWasActiveAtClick: true,  // 1: managed アプリが前景だった
+            pointerOnTaskbar: true,                      // 2: カーソルはたまたまタスクバー上
+            followsRecentTaskbarClick:
+                ForegroundActivationPolicy.FollowsRecentTaskbarClick(nowTick, lastClickTick),
+            nowTick: nowTick);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.NoRecentTaskbarClick,
+            $"Alt+Tab での前面化を再クリック最小化と誤判定してはいけない。実際: {reason}");
+    }
+
+    /// <summary>
+    /// 回帰テスト: managed ではないアプリのタスクバーボタンをクリックしたシナリオ。
+    ///
+    ///   1. 非 managed アプリ (Chrome 等) が前面で、その裏に Windowz + managed アプリ
+    ///   2. ユーザーが Chrome のタスクバーボタンをクリックして Chrome を引っ込める
+    ///   3. Chrome が最小化され、裏にいた managed ウィンドウが前景に上がる
+    ///   4. Windowz に Activated が届く
+    ///
+    /// 修正前: 4 の時点で「直前の前景」を見ていたため、3 で上がってきた managed
+    ///         ウィンドウを「managed アプリがアクティブだった」と解釈し、
+    ///         全条件が成立して Windowz まで一緒に引っ込んでいた。
+    ///         Chrome をどかして裏を見ようとしたのに、裏ごと消える挙動になる。
+    /// 修正後: クリックした瞬間にアクティブだったのは Chrome なので最小化しない。
+    /// </summary>
+    internal static void Scenario_TaskbarClickOnNonManagedApp_DoesNotMinimizeWindowz()
+    {
+        // 2 の時点でアクティブだったのは Chrome (managed ではない)
+        var reason = EvaluateMinimize(
+            visibleManagedAppWasActiveAtClick: false,
+            pointerOnTaskbar: true,           // クリックしたのでカーソルはタスクバー上
+            followsRecentTaskbarClick: true); // 実際にクリックしている
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.OtherAppWasActiveAtClick,
+            $"非 managed アプリのタスクバークリックで Windowz を最小化してはいけない。実際: {reason}");
+    }
+
+    /// <summary>
+    /// 上のシナリオとの対比: クリック時点でアクティブだったのが表示中の managed
+    /// アプリなら、同じ「クリック後に managed ウィンドウが前景」という状態でも
+    /// 最小化する。判定を分けているのがクリック時点の情報だけであることを示す。
+    /// </summary>
+    internal static void Scenario_TaskbarReclickOnActiveManagedApp_MinimizesWindowz()
+    {
+        var reason = EvaluateMinimize(
+            visibleManagedAppWasActiveAtClick: true,
+            pointerOnTaskbar: true,
+            followsRecentTaskbarClick: true);
+
+        Assert(reason == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.None,
+            $"表示中の managed アプリの再クリックは最小化すべき。実際: {reason}");
+    }
+
+    /// <summary>
+    /// 回帰テスト: タイル表示中に、アクティブタブではない側のスロットを触ってから
+    /// そのアプリのタスクバーボタンを再クリックしたシナリオ。
+    ///
+    /// 修正前: 直前の前景をアクティブタブのウィンドウとだけ突き合わせていたため、
+    ///         タイルの別スロットだと不一致になり最小化が効かなかった。
+    /// 修正後: 同時表示中のウィンドウも「今表示している managed ウィンドウ」に含める。
+    /// </summary>
+    internal static void Scenario_TaskbarReclickOnTileMember_MinimizesWindowz()
+    {
+        using var scope = new TempSettingsScope();
+        var mgr = CreateTabManager(scope.Manager);
+        try
+        {
+            var active = ContentTab("Active");
+            var member = ContentTab("TileMember");
+            var outside = ContentTab("Outside");
+            mgr.Tabs.Add(active);
+            mgr.Tabs.Add(member);
+            mgr.Tabs.Add(outside);
+
+            mgr.TileSpecificTabs(new[] { active, member });
+            mgr.ActiveTab = active;
+
+            // MainWindow.IsLastForegroundVisibleManagedWindow と同じ合成:
+            // アクティブタブ本体でなくても、同時表示中なら「表示中」とみなす。
+            bool memberIsVisible = mgr.IsCoVisibleWithActiveTab(member);
+            Assert(memberIsVisible, "タイルの別スロットは同時表示中と判定されるべき。");
+
+            Assert(EvaluateMinimize(visibleManagedAppWasActiveAtClick: memberIsVisible)
+                       == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.None,
+                "タイルの別スロットのアプリを再クリックしても Windowz は最小化されるべき。");
+
+            // タイル外のタブは同時表示されていないので、そちらの前面化は切り替え操作。
+            bool outsideIsVisible = mgr.IsCoVisibleWithActiveTab(outside);
+            Assert(EvaluateMinimize(visibleManagedAppWasActiveAtClick: outsideIsVisible)
+                       == ForegroundActivationPolicy.TaskbarMinimizeSkipReason.OtherAppWasActiveAtClick,
+                "タイル外のアプリからの前面化は最小化ではなくタブ切り替えとして扱うべき。");
+        }
+        finally { mgr.StopCleanupTimer(); }
+    }
+
     // ─────────────────────────────────────────
     // 同時表示タブの判定 (TabManager.IsCoVisibleWithActiveTab)
     // ─────────────────────────────────────────
@@ -454,6 +816,32 @@ internal static class ForegroundActivationPolicyTests
     // ─────────────────────────────────────────
     // ヘルパー
     // ─────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="ForegroundActivationPolicy.EvaluateTaskbarMinimize"/> の呼び出しヘルパー。
+    /// 既定値は「表示中の managed アプリのタスクバーボタンを再クリックした」状態
+    /// (＝最小化する) なので、各テストは検証したい条件だけを崩して渡す。
+    /// </summary>
+    private static ForegroundActivationPolicy.TaskbarMinimizeSkipReason EvaluateMinimize(
+        bool suppressed = false,
+        bool contentOrWebTabActive = false,
+        bool hasActiveManagedWindow = true,
+        bool visibleManagedAppWasActiveAtClick = true,
+        bool pointerOnTaskbar = true,
+        bool followsRecentTaskbarClick = true,
+        long nowTick = 1_000_000,
+        long restoredFromMinimizeTick = 0)
+    {
+        return ForegroundActivationPolicy.EvaluateTaskbarMinimize(
+            suppressed,
+            contentOrWebTabActive,
+            hasActiveManagedWindow,
+            visibleManagedAppWasActiveAtClick,
+            pointerOnTaskbar,
+            followsRecentTaskbarClick,
+            nowTick,
+            restoredFromMinimizeTick);
+    }
 
     private static Services.TabManager CreateTabManager(SettingsManager settingsManager) =>
         new(new Services.WindowManager(settingsManager), settingsManager, null!);

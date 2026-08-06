@@ -70,11 +70,27 @@ public static class ForegroundActivationPolicy
         if (foregroundMatchesEvent)
             return true;
 
+        // ここから先は「到着時の前景と食い違うイベントを復活させる」経路。
+        // どの経路にも上限を設けて、Dispatcher に数秒滞留したイベントで勝手に
+        // タブが切り替わったり Windowz が前へ出たりしないようにする。
+        //
+        // なお eventAgeMs (Dispatcher の滞留時間) と followsRecentTaskbarClick が
+        // 見ている間隔 (クリック→イベント発生) は別の量である。クリックから
+        // 1400ms 後に発生したイベントでも、滞留していなければ age は数 ms になる。
+
         // Windowz は Activated を通知しないことがある。タスクバークリック直後の
         // Windowz 前景イベントなら、到着時に managed window へ前景を渡し終えて
         // 食い違っていてもユーザー操作として処理する。
+        //
+        // この経路のイベントは、昇格処理が応答の遅い managed プロセスを待つ間に
+        // 滞留しやすい (ManagedPromotionRetryDelaysMs は最大 1000ms 待つ)。
+        // また復活の条件が「前景が Windowz か現アクティブタブ」なので、
+        // 第三のアプリから前景を奪う危険がない。managed 経路より緩い上限を使う。
         if (eventIsWindowz && followsRecentTaskbarClick)
-            return foregroundIsWindowz || foregroundIsActiveManagedWindow;
+        {
+            return eventAgeMs <= TaskbarClickCorrelationMs &&
+                   (foregroundIsWindowz || foregroundIsActiveManagedWindow);
+        }
 
         // managed タブに紐づかないウィンドウの古いイベントは破棄する。
         // (古いイベントで最小化中の Windowz を復元してタスクバー操作が反転するのを防ぐ)
@@ -88,6 +104,109 @@ public static class ForegroundActivationPolicy
         // 前景を持っているのが Windowz 自身か現アクティブタブのウィンドウなら、
         // 前景の奪い返しは Windowz 側の昇格処理が原因。ユーザーの選択を優先する。
         return foregroundIsWindowz || foregroundIsActiveManagedWindow;
+    }
+
+    /// <summary>
+    /// タスクバー再クリックによる Windowz 最小化を見送る理由。
+    /// <see cref="TaskbarMinimizeSkipReason.None"/> のときだけ最小化する。
+    /// </summary>
+    public enum TaskbarMinimizeSkipReason
+    {
+        /// <summary>見送る理由なし = 最小化する。</summary>
+        None = 0,
+
+        /// <summary>タブドラッグ中やオーバーレイ表示中で、前面化の調停自体を止めている。</summary>
+        Suppressed,
+
+        /// <summary>設定タブ・Web タブ表示中で managed ウィンドウを表示していない。</summary>
+        ContentOrWebTab,
+
+        /// <summary>最小化からの復元直後。この Activated は再クリックではない。</summary>
+        JustRestored,
+
+        /// <summary>アクティブタブに managed ウィンドウがない。</summary>
+        NoManagedWindow,
+
+        /// <summary>
+        /// クリックした時点でアクティブだったのが、今表示している managed アプリではない。
+        /// 別アプリのタスクバーボタンを押した操作なので、Windowz は動かさない。
+        /// </summary>
+        OtherAppWasActiveAtClick,
+
+        /// <summary>ポインタがタスクバー上にない。</summary>
+        PointerNotOnTaskbar,
+
+        /// <summary>タスクバーのクリックと相関しない前面化 (Alt+Tab・ホットキー等)。</summary>
+        NoRecentTaskbarClick,
+    }
+
+    /// <summary>
+    /// 「すでに前面にある managed アプリのタスクバーボタンを再クリックした」＝
+    /// Windowz ごと最小化すべき操作か判定する。
+    /// <para>
+    /// Windowz と managed ウィンドウは 1 つの論理ウィンドウとして振る舞うため、
+    /// managed 側のボタン再クリックでは Windowz も一緒に引っ込める必要がある。
+    /// 一方で Alt+Tab やホットキーによる前面化を最小化と誤判定すると、
+    /// アクティブにしたつもりのウィンドウが消える最悪の挙動になる。
+    /// </para>
+    /// </summary>
+    /// <param name="suppressed">前面化の調停を停止中か (ドラッグ中・オーバーレイ表示中)。</param>
+    /// <param name="contentOrWebTabActive">設定タブ / Web タブを表示中か。</param>
+    /// <param name="hasActiveManagedWindow">アクティブタブに managed ウィンドウがあるか。</param>
+    /// <param name="visibleManagedAppWasActiveAtClick">
+    /// タスクバーをクリックした時点でアクティブだったのが、今表示している managed
+    /// アプリか。タイル・ピン留めで同時表示中のウィンドウも「今表示している」に含める。
+    /// <para>
+    /// Activated 時点の前景ではなく、クリック時点のアクティブアプリで判定すること。
+    /// 非 managed アプリのボタンを押してそのアプリが引っ込むと、裏の managed
+    /// ウィンドウが前景に上がるため、後から見ると再クリックと区別できなくなる。
+    /// </para>
+    /// </param>
+    /// <param name="pointerOnTaskbar">ポインタがタスクバー上にあるか。</param>
+    /// <param name="followsRecentTaskbarClick">直近のタスクバークリックと相関する前面化か。</param>
+    /// <param name="nowTick">現在の TickCount64。</param>
+    /// <param name="restoredFromMinimizeTick">最小化から復元した時刻 (未復元なら 0)。</param>
+    public static TaskbarMinimizeSkipReason EvaluateTaskbarMinimize(
+        bool suppressed,
+        bool contentOrWebTabActive,
+        bool hasActiveManagedWindow,
+        bool visibleManagedAppWasActiveAtClick,
+        bool pointerOnTaskbar,
+        bool followsRecentTaskbarClick,
+        long nowTick,
+        long restoredFromMinimizeTick)
+    {
+        if (suppressed)
+            return TaskbarMinimizeSkipReason.Suppressed;
+
+        if (contentOrWebTabActive)
+            return TaskbarMinimizeSkipReason.ContentOrWebTab;
+
+        // 管理対象のタスクバーボタンから復元した直後の Activated は、再クリックによる
+        // 最小化ではない。WPF は 1 回の復元で Activated を複数回発火するため、
+        // フラグを消費せず猶予時間内かどうかで判定する (消費すると 2 回目の Activated が
+        // 再クリックと誤判定され、復元⇄最小化のフラッピングになる)。
+        if (IsWithinRestoreGrace(nowTick, restoredFromMinimizeTick))
+            return TaskbarMinimizeSkipReason.JustRestored;
+
+        if (!hasActiveManagedWindow)
+            return TaskbarMinimizeSkipReason.NoManagedWindow;
+
+        // 再クリック最小化は「今表示しているアプリのボタンをもう一度押した」操作。
+        // クリック時点でそのアプリがアクティブでなかったなら、別アプリのボタンを
+        // 押したか、非表示のアプリを呼び出した操作であって最小化ではない。
+        if (!visibleManagedAppWasActiveAtClick)
+            return TaskbarMinimizeSkipReason.OtherAppWasActiveAtClick;
+
+        if (!pointerOnTaskbar)
+            return TaskbarMinimizeSkipReason.PointerNotOnTaskbar;
+
+        // ポインタ位置だけでは、タスクバー上にカーソルを置いたまま Alt+Tab や
+        // ホットキーで前面化した場合と区別できない。実際のクリックと相関させる。
+        if (!followsRecentTaskbarClick)
+            return TaskbarMinimizeSkipReason.NoRecentTaskbarClick;
+
+        return TaskbarMinimizeSkipReason.None;
     }
 
     /// <summary>
