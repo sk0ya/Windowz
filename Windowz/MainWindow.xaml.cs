@@ -453,6 +453,7 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Maximized)
         {
             MaximizeIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.SquareMultiple24;
+            ScheduleMaximizedWorkAreaCorrection();
         }
         else
         {

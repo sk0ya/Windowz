@@ -15,6 +15,9 @@ public partial class MainWindow
         const int WM_NCHITTEST = 0x0084;
         const int WM_NCPAINT   = 0x0085;
         const int WM_GETMINMAXINFO = 0x0024;
+        const int WM_DISPLAYCHANGE = 0x007E;
+        const int WM_SETTINGCHANGE = 0x001A;
+        const int WM_DPICHANGED = 0x02E0;
         const int HTCLIENT = 1;
         const int MA_ACTIVATE = 1;
 
@@ -36,6 +39,12 @@ public partial class MainWindow
                 DispatcherPriority.Background,
                 () => HandleWindowzForegroundEvent());
         }
+
+        // RDP connect/disconnect and display configuration changes can leave a
+        // maximized borderless window using the previous monitor work area.
+        // Let WPF process the notification first, then re-read rcWork.
+        if (msg is WM_DISPLAYCHANGE or WM_SETTINGCHANGE or WM_DPICHANGED)
+            ScheduleMaximizedWorkAreaCorrection();
 
         // When the window is not active and the user clicks anywhere on it,
         // return MA_ACTIVATE so that Windows both activates Windowz AND passes
@@ -240,6 +249,71 @@ public partial class MainWindow
     }
 
     private const int MONITOR_DEFAULTTONEAREST = 2;
+
+    /// <summary>
+    /// Re-applies the monitor work area after WPF finishes transitioning to
+    /// Maximized. This is needed for borderless windows because WPF's state
+    /// transition can apply a second native rectangle after WM_GETMINMAXINFO.
+    /// </summary>
+    private void ScheduleMaximizedWorkAreaCorrection()
+    {
+        if (_mainWindowHandle == IntPtr.Zero)
+            return;
+
+        void Correct()
+        {
+            if (WindowState == WindowState.Maximized)
+                ApplyMaximizedWorkArea();
+        }
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, Correct);
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, Correct);
+    }
+
+    private void ApplyMaximizedWorkArea()
+    {
+        if (_mainWindowHandle == IntPtr.Zero ||
+            !NativeMethods.IsWindow(_mainWindowHandle))
+        {
+            return;
+        }
+
+        var monitor = MonitorFromWindow(_mainWindowHandle, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero)
+            return;
+
+        var monitorInfo = new MONITORINFO
+        {
+            cbSize = Marshal.SizeOf<MONITORINFO>()
+        };
+
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+            return;
+
+        var workArea = monitorInfo.rcWork;
+        if (workArea.Right <= workArea.Left || workArea.Bottom <= workArea.Top)
+            return;
+
+        if (NativeMethods.GetWindowRect(_mainWindowHandle, out var currentRect) &&
+            currentRect.Left == workArea.Left &&
+            currentRect.Top == workArea.Top &&
+            currentRect.Right == workArea.Right &&
+            currentRect.Bottom == workArea.Bottom)
+        {
+            return;
+        }
+
+        NativeMethods.SetWindowPos(
+            _mainWindowHandle,
+            IntPtr.Zero,
+            workArea.Left,
+            workArea.Top,
+            workArea.Right - workArea.Left,
+            workArea.Bottom - workArea.Top,
+            NativeMethods.SWP_NOZORDER |
+            NativeMethods.SWP_NOACTIVATE |
+            NativeMethods.SWP_FRAMECHANGED);
+    }
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int dwFlags);
