@@ -118,6 +118,7 @@ internal static class Program
         Run("ForgetManagedWindow_RemovesFromTracking",            WindowManagerIntegrationTests.ForgetManagedWindow_RemovesFromTracking);
         Run("ActivateManagedWindow_SetsWindowToRequestedVisibleRect", WindowManagerIntegrationTests.ActivateManagedWindow_SetsWindowToRequestedVisibleRect);
         Run("ActivateManagedWindow_ShowsMinimizedWindow",         WindowManagerIntegrationTests.ActivateManagedWindow_ShowsMinimizedWindow);
+        Run("ActivateManagedWindow_DoesNotCoverExistingTopmostWindow", WindowManagerIntegrationTests.ActivateManagedWindow_DoesNotCoverExistingTopmostWindow);
         Run("ReleaseManagedWindow_RestoresOriginalPosition",      WindowManagerIntegrationTests.ReleaseManagedWindow_RestoresOriginalPosition);
         Run("ReleaseManagedWindow_NotManaged_DoesNotMoveWindow",  WindowManagerIntegrationTests.ReleaseManagedWindow_NotManaged_DoesNotMoveWindow);
         Run("MinimizeManagedWindow_MakesWindowIconic",            WindowManagerIntegrationTests.MinimizeManagedWindow_MakesWindowIconic);

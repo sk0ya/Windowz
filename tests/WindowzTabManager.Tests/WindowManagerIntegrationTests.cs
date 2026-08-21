@@ -61,6 +61,16 @@ internal static class WindowManagerIntegrationTests
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetTopWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint command);
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -126,6 +136,12 @@ internal static class WindowManagerIntegrationTests
     private const int  GWL_EXSTYLE = -20;
     private const int  WS_EX_TOOLWINDOW = 0x00000080;
     private const int  WS_EX_APPWINDOW = 0x00040000;
+    private const int  WS_EX_TOPMOST = 0x00000008;
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
+    private const uint GW_HWNDNEXT = 2;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOACTIVATE = 0x0010;
     private const uint PM_REMOVE        = 1;
     private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
     private const uint WINEVENT_OUTOFCONTEXT   = 0x0000;
@@ -250,6 +266,34 @@ internal static class WindowManagerIntegrationTests
         mgr.ActivateManagedWindow(win.Handle, x: 100, y: 100, width: 200, height: 150, bringToFront: false);
 
         Assert(!IsIconic(win.Handle), "ActivateManagedWindow は最小化ウィンドウを復元するべき。");
+    }
+
+    internal static void ActivateManagedWindow_DoesNotCoverExistingTopmostWindow()
+    {
+        using var scope = new TempSettingsScope();
+        var mgr = new WindowManager(scope.Manager);
+        using var topmost = new TestWindowScope(x: 500, y: 500, width: 240, height: 160,
+            exStyle: WS_EX_TOPMOST);
+        using var managed = new TestWindowScope(x: 520, y: 520, width: 240, height: 160);
+        using var windowz = new TestWindowScope(x: 540, y: 540, width: 240, height: 160);
+
+        SetWindowPos(topmost.Handle, HWND_TOPMOST, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        mgr.TryManageWindow(managed.Handle);
+
+        mgr.ActivateManagedWindow(
+            managed.Handle,
+            x: 100,
+            y: 100,
+            width: 240,
+            height: 160,
+            bringToFront: true,
+            windWindowHandle: windowz.Handle);
+
+        Assert(IsWindowBefore(topmost.Handle, windowz.Handle),
+            "既存の Topmost ウィンドウは Windowz より前に残るべき。");
+        Assert((GetWindowLong(topmost.Handle, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0,
+            "既存の Topmost 属性は維持されるべき。");
     }
 
     internal static void ReleaseManagedWindow_RestoresOriginalPosition()
@@ -627,13 +671,14 @@ internal static class WindowManagerIntegrationTests
         /// true  (既定): WS_VISIBLE で作成。ウィンドウはフォアグラウンドを取得する場合がある。
         /// false        : 非表示で作成。ShowWindow で後から表示でき、フォアグラウンドを奪わない。
         /// </param>
-        public TestWindowScope(int x = 10, int y = 10, int width = 320, int height = 200, bool visible = true)
+        public TestWindowScope(int x = 10, int y = 10, int width = 320, int height = 200,
+            bool visible = true, uint exStyle = 0)
         {
             EnsureWindowClassRegistered();
             uint style = WS_POPUP;
             if (visible) style |= WS_VISIBLE;
             Handle = CreateWindowEx(
-                0, TestClassName, $"WindowzTest-{Guid.NewGuid():N}",
+                exStyle, TestClassName, $"WindowzTest-{Guid.NewGuid():N}",
                 style,
                 x, y, width, height,
                 IntPtr.Zero, IntPtr.Zero, GetModuleHandle(null), IntPtr.Zero);
@@ -647,5 +692,18 @@ internal static class WindowManagerIntegrationTests
             if (Handle != IntPtr.Zero && IsWindow(Handle))
                 DestroyWindow(Handle);
         }
+    }
+
+    private static bool IsWindowBefore(IntPtr first, IntPtr second)
+    {
+        for (var current = GetTopWindow(IntPtr.Zero);
+             current != IntPtr.Zero;
+             current = GetWindow(current, GW_HWNDNEXT))
+        {
+            if (current == first) return true;
+            if (current == second) return false;
+        }
+
+        return false;
     }
 }

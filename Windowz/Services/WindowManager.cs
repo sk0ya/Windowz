@@ -252,8 +252,15 @@ public class WindowManager
         }
 
         bool foregroundActivated = false;
+        List<IntPtr>? topmostWindowsBeforeActivation = null;
         if (bringToFront)
         {
+            // タスクバーから非 Topmost の managed window を前面化すると、
+            // Windows の一時的な Z-order 更新や直後の Windowz 再配置によって、
+            // 画面上にある別アプリの Topmost window が隠れることがある。
+            // 前面化前の Topmost ウィンドウを記録し、処理の最後に順序を再確認する。
+            topmostWindowsBeforeActivation = CaptureVisibleTopmostWindows();
+
             var foregroundBefore = NativeMethods.GetForegroundWindow();
             foregroundActivated = NativeMethods.ForceForegroundWindow(handle);
             ActivationLog.Write("WinMgr",
@@ -273,6 +280,9 @@ public class WindowManager
         {
             PlaceWindowzBehindManagedWindow(handle, windWindowHandle);
         }
+
+        if (bringToFront && foregroundActivated && topmostWindowsBeforeActivation is { Count: > 0 })
+            RestoreTopmostWindowOrder(topmostWindowsBeforeActivation);
     }
 
     private static void RepairManagedWindowZOrder(IntPtr handle, IntPtr windWindowHandle)
@@ -316,9 +326,13 @@ public class WindowManager
             if (targetThread != 0 && targetThread != currentThread)
                 attachedTarget = NativeMethods.AttachThreadInput(currentThread, targetThread, true);
 
+            bool managedWindowIsTopmost =
+                (NativeMethods.GetWindowLong(handle, NativeMethods.GWL_EXSTYLE) &
+                 (int)NativeMethods.WS_EX_TOPMOST) != 0;
+
             NativeMethods.SetWindowPos(
                 windWindowHandle,
-                handle,
+                managedWindowIsTopmost ? NativeMethods.HWND_NOTOPMOST : handle,
                 0,
                 0,
                 0,
@@ -331,6 +345,55 @@ public class WindowManager
         {
             if (attachedTarget)
                 NativeMethods.AttachThreadInput(currentThread, targetThread, false);
+        }
+    }
+
+    private static List<IntPtr> CaptureVisibleTopmostWindows()
+    {
+        var windows = new List<IntPtr>();
+
+        NativeMethods.EnumWindows((hWnd, _) =>
+        {
+            if (!NativeMethods.IsWindowVisible(hWnd) || NativeMethods.IsIconic(hWnd))
+                return true;
+
+            int exStyle = NativeMethods.GetWindowLong(hWnd, NativeMethods.GWL_EXSTYLE);
+            if ((exStyle & (int)NativeMethods.WS_EX_TOPMOST) == 0)
+                return true;
+
+            windows.Add(hWnd);
+            return true;
+        }, IntPtr.Zero);
+
+        return windows;
+    }
+
+    private static void RestoreTopmostWindowOrder(IReadOnlyList<IntPtr> windows)
+    {
+        // EnumWindows は上から下の順で返るため、下から HWND_TOPMOST に戻すと
+        // Topmost 同士の相対順序を保ったまま、非 Topmost ウィンドウより上に戻せる。
+        for (int i = windows.Count - 1; i >= 0; i--)
+        {
+            var handle = windows[i];
+            if (!NativeMethods.IsWindow(handle) || !NativeMethods.IsWindowVisible(handle))
+                continue;
+
+            // キャプチャ後にアプリ自身が Topmost を解除する場合がある。
+            // その意思を尊重し、HWND_TOPMOST で再昇格させない。
+            int exStyle = NativeMethods.GetWindowLong(handle, NativeMethods.GWL_EXSTYLE);
+            if ((exStyle & (int)NativeMethods.WS_EX_TOPMOST) == 0)
+                continue;
+
+            NativeMethods.SetWindowPos(
+                handle,
+                NativeMethods.HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                NativeMethods.SWP_NOMOVE |
+                NativeMethods.SWP_NOSIZE |
+                NativeMethods.SWP_NOACTIVATE);
         }
     }
 
