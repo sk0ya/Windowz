@@ -407,16 +407,17 @@ public partial class MainWindow
         if (hwnd == managed)
             return true;
 
-        var root1 = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
-        var root2 = NativeMethods.GetAncestor(managed, NativeMethods.GA_ROOT);
-        if (root1 == IntPtr.Zero) root1 = hwnd;
-        if (root2 == IntPtr.Zero) root2 = managed;
-        if (root1 == root2)
-            return true;
-
-        NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid1);
-        NativeMethods.GetWindowThreadProcessId(managed, out uint pid2);
-        return pid1 != 0 && pid2 != 0 && pid1 == pid2;
+        // Owned dialogs/popups belong to the same window group through their
+        // root owner. Do not use process identity here: an application can
+        // legitimately create another independent top-level window in the
+        // same process (and therefore with its own taskbar button). Treating
+        // that window as the managed target causes a pending promotion to
+        // ForceForegroundWindow the original window back to the front.
+        var rootOwner1 = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOTOWNER);
+        var rootOwner2 = NativeMethods.GetAncestor(managed, NativeMethods.GA_ROOTOWNER);
+        if (rootOwner1 == IntPtr.Zero) rootOwner1 = hwnd;
+        if (rootOwner2 == IntPtr.Zero) rootOwner2 = managed;
+        return rootOwner1 == rootOwner2;
     }
 
     private IntPtr GetCurrentActiveManagedWindowHandle()
