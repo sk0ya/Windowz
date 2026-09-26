@@ -177,6 +177,12 @@ public class WindowManager
             return;
         }
 
+        // 所有ダイアログの表示中は親の Z-order を変更しない。
+        // 遅延した前面化やレイアウト更新でもダイアログを背面に押し込まない。
+        var activationTarget = NativeMethods.GetManagedActivationTarget(handle);
+        if (activationTarget != handle)
+            setZOrder = false;
+
         width = Math.Max(1, width);
         height = Math.Max(1, height);
 
@@ -262,7 +268,8 @@ public class WindowManager
             topmostWindowsBeforeActivation = CaptureVisibleTopmostWindows();
 
             var foregroundBefore = NativeMethods.GetForegroundWindow();
-            foregroundActivated = NativeMethods.ForceForegroundWindow(handle);
+            foregroundActivated = NativeMethods.ForceForegroundWindow(
+                NativeMethods.GetManagedActivationTarget(handle));
             ActivationLog.Write("WinMgr",
                 $"ActivateManagedWindow {ActivationLog.Describe(handle)} bringToFront " +
                 $"alreadyVisible={alreadyVisible} positioned={positioned} " +

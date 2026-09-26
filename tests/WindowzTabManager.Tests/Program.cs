@@ -112,6 +112,7 @@ internal static class Program
         Run("HitTest_RealWindowRect_MatchesWindowBounds", WindowHitTestTests.HitTest_RealWindowRect_MatchesWindowBounds);
 
         // ── 実 Win32 ウィンドウを使ったインテグレーションテスト ──
+        Run("ActivateManagedWindow_OwnedPopup_KeepsPopupForeground", WindowManagerIntegrationTests.ActivateManagedWindow_OwnedPopup_KeepsPopupForeground);
         Run("TryManageWindow_ValidHwnd_ReturnsTrue",              WindowManagerIntegrationTests.TryManageWindow_ValidHwnd_ReturnsTrue);
         Run("TryManageWindow_ZeroHandle_ReturnsFalse",            WindowManagerIntegrationTests.TryManageWindow_ZeroHandle_ReturnsFalse);
         Run("TryManageWindow_AlreadyManagedHandle_ReturnsFalse",  WindowManagerIntegrationTests.TryManageWindow_AlreadyManagedHandle_ReturnsFalse);

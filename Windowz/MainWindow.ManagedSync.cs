@@ -207,6 +207,7 @@ public partial class MainWindow
         // ForceForegroundWindow でフォーカスも奪われてボタン操作ができなくなる。
         if (!foregroundIsManagedWindow)
         {
+            CancelManagedWindowPromotion();
             // _activeManagedWindowHandle を復元して次の位置更新で bringToFront=true
             // にならないよう防ぐ（MainWindow_Deactivated が IntPtr.Zero にリセット済み）
             if (_tabManager.TryGetExternallyManagedWindowHandle(matchingTab, out var mh) && mh != IntPtr.Zero)

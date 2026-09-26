@@ -279,6 +279,43 @@ internal static class NativeMethods
         return length > 0 ? sb.ToString() : string.Empty;
     }
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetLastActivePopup(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowEnabled(IntPtr hWnd);
+
+    public static bool IsOwnedByWindow(IntPtr popup, IntPtr owner)
+    {
+        if (popup == IntPtr.Zero || owner == IntPtr.Zero || popup == owner)
+            return false;
+
+        var visited = new HashSet<IntPtr>();
+        for (var current = GetWindow(popup, 4 /* GW_OWNER */);
+             current != IntPtr.Zero && visited.Add(current);
+             current = GetWindow(current, 4 /* GW_OWNER */))
+        {
+            if (current == owner)
+                return true;
+        }
+        return false;
+    }
+
+    public static IntPtr GetManagedActivationTarget(IntPtr handle)
+    {
+        var foreground = GetForegroundWindow();
+        if (IsOwnedByWindow(foreground, handle) && IsWindowVisible(foreground) && IsWindowEnabled(foreground))
+            return foreground;
+
+        var popup = GetLastActivePopup(GetAncestor(handle, GA_ROOTOWNER));
+        if (IsOwnedByWindow(popup, handle) && IsWindowVisible(popup) &&
+            !IsIconic(popup) && IsWindowEnabled(popup))
+            return popup;
+
+        return handle;
+    }
+
     /// <summary>
     /// Brings the specified window to the foreground even when another process
     /// currently owns the foreground lock. Uses AttachThreadInput to temporarily

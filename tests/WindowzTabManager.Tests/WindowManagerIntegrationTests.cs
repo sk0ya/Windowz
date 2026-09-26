@@ -672,7 +672,7 @@ internal static class WindowManagerIntegrationTests
         /// false        : 非表示で作成。ShowWindow で後から表示でき、フォアグラウンドを奪わない。
         /// </param>
         public TestWindowScope(int x = 10, int y = 10, int width = 320, int height = 200,
-            bool visible = true, uint exStyle = 0)
+            bool visible = true, uint exStyle = 0, IntPtr owner = default)
         {
             EnsureWindowClassRegistered();
             uint style = WS_POPUP;
@@ -681,7 +681,7 @@ internal static class WindowManagerIntegrationTests
                 exStyle, TestClassName, $"WindowzTest-{Guid.NewGuid():N}",
                 style,
                 x, y, width, height,
-                IntPtr.Zero, IntPtr.Zero, GetModuleHandle(null), IntPtr.Zero);
+                owner, IntPtr.Zero, GetModuleHandle(null), IntPtr.Zero);
 
             if (Handle == IntPtr.Zero)
                 throw new InvalidOperationException($"CreateWindowEx 失敗: {Marshal.GetLastWin32Error()}");
@@ -692,6 +692,42 @@ internal static class WindowManagerIntegrationTests
             if (Handle != IntPtr.Zero && IsWindow(Handle))
                 DestroyWindow(Handle);
         }
+    }
+
+    internal static void ActivateManagedWindow_OwnedPopup_KeepsPopupForeground()
+    {
+        using var scope = new TempSettingsScope();
+        var manager = new WindowManager(scope.Manager);
+        using var parent = new TestWindowScope();
+        Assert(manager.TryManageWindow(parent.Handle), "管理開始に失敗。");
+        using var popup = new TestWindowScope(owner: parent.Handle);
+        SetForegroundWindow(popup.Handle);
+        Assert(GetForegroundWindow() == popup.Handle, "子ウィンドウの前景化に失敗。");
+        GetWindowRect(popup.Handle, out var original);
+
+        manager.ActivateManagedWindow(parent.Handle, 50, 60, 400, 300, bringToFront: true);
+        manager.ActivateManagedWindow(parent.Handle, 50, 60, 400, 300, bringToFront: false);
+        manager.ActivateManagedWindow(parent.Handle, 50, 60, 400, 300, bringToFront: false);
+        Assert(GetForegroundWindow() == popup.Handle, "前面化・位置更新で子ウィンドウからフォーカスを奪わないこと。");
+        GetWindowRect(popup.Handle, out var after);
+        Assert(after.Width == original.Width && after.Height == original.Height,
+            "子ウィンドウを管理領域のサイズに変更しないこと。");
+
+        using (var nested = new TestWindowScope(owner: popup.Handle))
+        {
+            SetForegroundWindow(nested.Handle);
+            manager.ActivateManagedWindow(parent.Handle, 50, 60, 400, 300, bringToFront: true);
+            Assert(GetForegroundWindow() == nested.Handle, "入れ子のダイアログを維持すること。");
+        }
+        using (var unrelated = new TestWindowScope())
+        {
+            SetForegroundWindow(unrelated.Handle);
+            manager.ActivateManagedWindow(parent.Handle, 50, 60, 400, 300, bringToFront: true);
+            Assert(GetForegroundWindow() == popup.Handle, "別ウィンドウから戻る際も所有ダイアログを優先すること。");
+        }
+        popup.Dispose();
+        manager.ActivateManagedWindow(parent.Handle, 50, 60, 400, 300, bringToFront: true);
+        Assert(GetForegroundWindow() == parent.Handle, "子ウィンドウを閉じた後は親を前景化すること。");
     }
 
     private static bool IsWindowBefore(IntPtr first, IntPtr second)
